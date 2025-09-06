@@ -7,6 +7,7 @@ from datetime import date, timedelta
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
+import time # API呼び出し間の待機時間のために追加
 
 # ページ設定
 st.set_page_config(
@@ -43,11 +44,11 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     """
     if not account_id:
         st.error("アカウントIDを入力してください。")
-        return None
+        return None, None
     
     if start_date > end_date:
         st.error("開始日は終了日より前の日付を選択してください。")
-        return None
+        return None, None
 
     all_dfs = []
     current_date = start_date
@@ -75,7 +76,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
             st.warning(f"{year}年{month}月のデータが見つかりませんでした。スキップします。")
         except Exception as e:
             st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
-            return None
+            return None, None
             
         if current_date.month == 12:
             current_date = date(current_date.year + 1, 1, 1)
@@ -84,7 +85,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
 
     if not all_dfs:
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
-        return None
+        return None, None
 
     combined_df = pd.concat(all_dfs, ignore_index=True)
 
@@ -104,7 +105,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
 
     if filtered_df.empty:
         st.warning(f"指定されたアカウントID（{account_id}）のデータが選択された期間に見つかりませんでした。")
-        return None
+        return None, None
 
     for col in [
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
@@ -143,60 +144,99 @@ def categorize_time_of_day_with_range(hour):
     else:
         return "深夜 (0-3時)"
 
-def get_event_data_from_api(room_id):
+def get_event_list_from_api(page=1, status=4):
     """
-    指定されたルームIDのイベント情報を取得する（非公式APIの例）
-    デバッグ情報を追加
+    指定されたステータスのイベントリストを取得する
+    status: 1:開催中, 3:開催予定, 4:終了済み
     """
-    url = f"https://www.showroom-live.com/api/room/event_list?room_id={room_id}"
-    st.info(f"APIへのリクエスト: {url}") # デバッグ情報
+    url = f"https://www.showroom-live.com/api/event/search?page={page}&status={status}"
     try:
         response = requests.get(url, timeout=10)
-        response.raise_for_status() # HTTPエラーをチェック
+        response.raise_for_status()
         events = response.json().get("event_list", [])
-        st.success("APIからイベント情報を正常に取得しました。") # 成功メッセージ
         return events
     except requests.exceptions.RequestException as e:
-        st.error(f"APIからのイベント情報取得に失敗しました。詳細: {e}") # 失敗メッセージ
-        st.error(f"ステータスコード: {response.status_code if 'response' in locals() else 'N/A'}")
+        st.error(f"イベントリストの取得に失敗しました: {e}")
         return []
+
+def check_event_participation(event_id, room_id):
+    """
+    指定されたルームIDが特定のイベントに参加しているか確認する
+    """
+    url = f"https://www.showroom-live.com/api/events/{event_id}/ranking"
+    params = {"room_id": room_id}
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        ranking_data = response.json().get("ranking_list", [])
+        # ranking_listにroom_idが存在するかで判断
+        for entry in ranking_data:
+            if entry.get("room_id") == int(room_id):
+                return True
+        return False
+    except requests.exceptions.RequestException as e:
+        st.error(f"イベント {event_id} のランキング情報取得に失敗しました: {e}")
+        return False
 
 def add_event_info_to_df(df, room_id):
     """
-    DataFrameにイベント情報を追加する
+    DataFrameにイベント情報を追加する（新しいロジック）
     """
     if room_id is None:
         st.warning("ルームIDが取得できませんでした。イベント情報は追加されません。")
         df['参加イベント'] = '情報なし'
         return df
 
-    # イベント情報の取得
-    events = get_event_data_from_api(room_id)
-    if not events:
-        st.warning(f"ルームID {room_id} のイベント情報が見つかりませんでした。APIがデータを返していないか、データ形式が変更された可能性があります。")
+    st.info("APIからイベント情報を取得中です。この処理には時間がかかる場合があります。")
+    
+    # 終了済みイベントリストを取得
+    events_list = get_event_list_from_api(status=4)
+    if not events_list:
+        st.warning("終了済みイベントのリストが見つかりませんでした。")
         df['参加イベント'] = '情報なし'
         return df
 
-    # イベントデータを整形
-    event_df = pd.DataFrame(events)
-    event_df['start_date'] = pd.to_datetime(event_df['start_date'], unit='s')
-    event_df['end_date'] = pd.to_datetime(event_df['end_date'], unit='s')
-    event_df['event_name'] = event_df['event_url_key'].str.split('/').str[-1] # URLからイベント名を抽出
+    participated_events = []
+    
+    # 各イベントに参加しているか確認
+    progress_bar = st.progress(0)
+    for i, event in enumerate(events_list):
+        event_id = event.get("event_id")
+        event_url_key = event.get("event_url_key")
+        event_name = event_url_key.split('/')[-1] if event_url_key else f"Event_{event_id}"
+        
+        if check_event_participation(event_id, room_id):
+            event_start_date = pd.to_datetime(event.get("started_at"), unit='s')
+            event_end_date = pd.to_datetime(event.get("ended_at"), unit='s')
+            
+            participated_events.append({
+                'event_name': event_name,
+                'start_date': event_start_date,
+                'end_date': event_end_date
+            })
+            
+        progress_bar.progress((i + 1) / len(events_list))
+        time.sleep(0.1) # サーバー負荷軽減のため、わずかに待機
 
+    if not participated_events:
+        st.warning(f"ルームID {room_id} の過去の参加イベントが見つかりませんでした。")
+        df['参加イベント'] = '情報なし'
+        return df
+        
+    participated_df = pd.DataFrame(participated_events)
+    
     # 各配信に該当するイベントを紐づけ
-    df['参加イベント'] = ''
+    df['参加イベント'] = '通常配信'
     for index, row in df.iterrows():
-        # 配信日時がイベント期間内にあるかチェック
-        matched_events = event_df[
-            (event_df['start_date'] <= row['配信日時']) & 
-            (event_df['end_date'] >= row['配信日時'])
+        matched_events = participated_df[
+            (participated_df['start_date'] <= row['配信日時']) & 
+            (participated_df['end_date'] >= row['配信日時'])
         ]['event_name']
 
         if not matched_events.empty:
             df.loc[index, '参加イベント'] = ' / '.join(matched_events.unique())
-        else:
-            df.loc[index, '参加イベント'] = '通常配信'
-
+    
+    st.success("イベント情報の取得と紐づけが完了しました。")
     return df
 
 if st.button("分析を実行"):
@@ -220,7 +260,6 @@ if st.button("分析を実行"):
                 st.markdown(f"**合計視聴数:** {total_viewers:,} 人")
                 st.markdown(f"**合計コメント数:** {total_comments:,} 件")
 
-                # 時間帯別パフォーマンス分析をここに追加
                 st.subheader("📊 時間帯別パフォーマンス分析 (平均値)")
                 st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
                 
