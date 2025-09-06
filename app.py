@@ -33,7 +33,6 @@ today = datetime.now(JST).date()
 
 # 日付範囲の選択ウィジェット
 st.subheader("🗓️ 分析期間を選択")
-today = date.today()
 
 # デフォルトの終了日を今日から1日前に設定
 default_end_date = today - timedelta(days=1)
