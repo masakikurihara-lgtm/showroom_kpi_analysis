@@ -319,7 +319,7 @@ if st.session_state.run_analysis:
                         margin=dict(t=50, b=0, l=40, r=40)
                     )
                     st.plotly_chart(fig6, use_container_width=True)
-
+            
             else: # 個別アカウントIDの場合
                 st.subheader("📈 主要KPIの推移")
                 df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
