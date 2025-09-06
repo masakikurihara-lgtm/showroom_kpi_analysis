@@ -139,6 +139,9 @@ if st.button("分析を実行"):
         if df is not None and not df.empty:
             st.success("データの読み込みと前処理が完了しました！")
             
+            # --- 修正点: すべての計算・表示の前に、データを最新順に並び替え ---
+            df = df.sort_values(by="配信日時", ascending=True).copy()
+            
             # 分析と可視化
             st.subheader("📈 主要KPIの推移")
             # Plotlyを使用してグラフを作成（時間表示に対応）
@@ -156,9 +159,9 @@ if st.button("分析を実行"):
             
             # 詳細データテーブルの表示
             st.subheader("📝 配信ごとの詳細データ")
-            # 配信日時で降順に並び替え
-            df_sorted = df.sort_values(by="配信日時", ascending=False)
-            st.dataframe(df_sorted, hide_index=True)
+            # 配信日時で降順に並び替え（表示用）
+            df_display = df.sort_values(by="配信日時", ascending=False)
+            st.dataframe(df_display, hide_index=True)
 
             st.subheader("🎯 初見/リピーター分析")
             col1, col2, col3 = st.columns(3)
