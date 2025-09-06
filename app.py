@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import io
 import requests
-import re
 
 # ページ設定
 st.set_page_config(
@@ -42,27 +41,33 @@ def load_and_preprocess_data(member_id):
         # バイナリデータをStringIOで読み込める形に変換
         csv_data = io.StringIO(response.text)
         
-        # CSVを読み込む
-        df = pd.read_csv(csv_data)
+        # ヘッダーなしでCSVを読み込む
+        df = pd.read_csv(csv_data, header=None)
+        
+        # CSVのヘッダー行を抽出
+        header_row = df.iloc[0].tolist()
+        # ヘッダー行の余分なカンマを削除
+        if header_row[-1] is None or pd.isna(header_row[-1]):
+            header_row.pop()
+        
+        # データの最初の行（元のヘッダー）を削除
+        df = df.iloc[1:].copy()
+        
+        # 正しい列名を設定
+        df.columns = header_row
 
-        # 列名から前後の空白と、見えない特殊文字を削除
-        df.columns = df.columns.str.replace(r'[\s\u200b\ufeff]+', '', regex=True)
-        
-        # CSVの最終列が余分なデータなので削除
-        df = df.iloc[:, :-1]
-        
         # データ型変換とクリーンアップ
         for col in [
             "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
             "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
-            "ギフト人数", "初ギフト人数"
+            "ギフト人数", "初ギフト人数", "フォロワー増減数"
         ]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
         
         # "配信日時"列をdatetime型に変換
         df["配信日時"] = pd.to_datetime(df["配信日時"])
-        
+
         return df
 
     except requests.exceptions.RequestException as e:
