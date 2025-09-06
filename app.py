@@ -5,6 +5,7 @@ import io
 import requests
 from datetime import date, timedelta
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import plotly.express as px
 
 # ページ設定
@@ -48,7 +49,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         st.error("開始日は終了日より前の日付を選択してください。")
         return None
 
-    # 日付範囲内のすべての月を特定
     all_dfs = []
     current_date = start_date
     while current_date <= end_date:
@@ -58,29 +58,17 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
         
         try:
-            # requestsを使ってURLからCSVデータを取得
             response = requests.get(url)
-            response.raise_for_status()  # HTTPエラーをチェック
-            
-            # BOM付きUTF-8に対応するため、decode('utf-8-sig')を使用
+            response.raise_or_status()
             csv_text = response.content.decode('utf-8-sig')
-            
-            # 各行を処理
             lines = csv_text.strip().split('\n')
             header_line = lines[0]
             data_lines = lines[1:]
-            
-            # ヘッダーとデータ行の列数を一致させるため、余分な列を削除
             cleaned_data_lines = [','.join(line.split(',')[:-1]) for line in data_lines]
             cleaned_csv_text = header_line + '\n' + '\n'.join(cleaned_data_lines)
-            
-            # StringIOを使ってpandasに渡す
             csv_data = io.StringIO(cleaned_csv_text)
             df = pd.read_csv(csv_data)
-            
-            # 列名から前後の空白と引用符を削除
             df.columns = df.columns.str.strip().str.replace('"', '')
-            
             all_dfs.append(df)
             
         except requests.exceptions.RequestException as e:
@@ -89,7 +77,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
             st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
             return None
             
-        # 次の月に移動
         if current_date.month == 12:
             current_date = date(current_date.year + 1, 1, 1)
         else:
@@ -99,10 +86,8 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
         return None
 
-    # すべてのデータフレームを結合
     combined_df = pd.concat(all_dfs, ignore_index=True)
 
-    # "配信日時"列をdatetime型に変換
     if "配信日時" not in combined_df.columns:
         raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
     combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
@@ -131,7 +116,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
 
     return filtered_df
 
-# 時間帯を分類する関数（新しい分類）
 def categorize_time_of_day(hour):
     if 3 <= hour < 6:
         return "早朝"
@@ -149,10 +133,9 @@ def categorize_time_of_day(hour):
         return "イベント直前"
     elif 22 <= hour < 24:
         return "夜後半"
-    else: # 0 <= hour < 3
+    else:
         return "深夜"
 
-# 分析実行ボタン
 if st.button("分析を実行"):
     if len(selected_date_range) == 2:
         start_date = selected_date_range[0]
@@ -219,66 +202,59 @@ if st.button("分析を実行"):
                 )
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # --- 追加機能: 時間帯別分析 ---
+                # --- 時間帯別分析の修正 ---
                 st.subheader("📊 時間帯別パフォーマンス分析")
                 
-                df_sorted_asc['時間帯'] = df_sorted_asc['配信日時'].dt.hour.apply(categorize_time_of_day)
+                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day)
                 
-                # 時間帯ごとに平均値を集計
-                time_of_day_kpis = df_sorted_asc.groupby('時間帯').agg({
+                time_of_day_kpis = df.groupby('時間帯').agg({
                     '獲得支援point': 'mean',
                     '合計視聴数': 'mean',
                     'コメント数': 'mean'
                 }).reset_index()
 
-                # グラフの作成 (二重Y軸)
                 time_of_day_order = ["深夜", "早朝", "朝", "午前", "昼", "午後", "夜", "イベント直前", "夜後半"]
                 time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
+
+                fig_time_of_day = make_subplots(
+                    rows=1, cols=3, 
+                    subplot_titles=("獲得支援point", "合計視聴数", "コメント数")
+                )
                 
-                fig_time_of_day = go.Figure()
+                fig_time_of_day.add_trace(
+                    go.Bar(
+                        x=time_of_day_kpis['時間帯'],
+                        y=time_of_day_kpis['獲得支援point'],
+                        name='獲得支援point',
+                        marker_color='#1f77b4'
+                    ),
+                    row=1, col=1
+                )
                 
-                # 左Y軸 (獲得支援point)
-                fig_time_of_day.add_trace(go.Bar(
-                    x=time_of_day_kpis['時間帯'],
-                    y=time_of_day_kpis['獲得支援point'],
-                    name='獲得支援point',
-                    marker_color='#1f77b4'
-                ))
+                fig_time_of_day.add_trace(
+                    go.Bar(
+                        x=time_of_day_kpis['時間帯'],
+                        y=time_of_day_kpis['合計視聴数'],
+                        name='合計視聴数',
+                        marker_color='#ff7f0e'
+                    ),
+                    row=1, col=2
+                )
                 
-                # 右Y軸 (合計視聴数、コメント数)
-                fig_time_of_day.add_trace(go.Bar(
-                    x=time_of_day_kpis['時間帯'],
-                    y=time_of_day_kpis['合計視聴数'],
-                    name='合計視聴数',
-                    marker_color='#ff7f0e',
-                    yaxis='y2'
-                ))
-                fig_time_of_day.add_trace(go.Bar(
-                    x=time_of_day_kpis['時間帯'],
-                    y=time_of_day_kpis['コメント数'],
-                    name='コメント数',
-                    marker_color='#2ca02c',
-                    yaxis='y2'
-                ))
+                fig_time_of_day.add_trace(
+                    go.Bar(
+                        x=time_of_day_kpis['時間帯'],
+                        y=time_of_day_kpis['コメント数'],
+                        name='コメント数',
+                        marker_color='#2ca02c'
+                    ),
+                    row=1, col=3
+                )
                 
                 fig_time_of_day.update_layout(
-                    title="時間帯別KPI平均値",
-                    xaxis_title="時間帯",
-                    barmode='group',
-                    yaxis=dict(
-                        title='獲得支援point',
-                        titlefont=dict(color='#1f77b4'),
-                        tickfont=dict(color='#1f77b4')
-                    ),
-                    yaxis2=dict(
-                        title='合計視聴数・コメント数',
-                        titlefont=dict(color='#ff7f0e'),
-                        tickfont=dict(color='#ff7f0e'),
-                        overlaying='y',
-                        side='right'
-                    ),
-                    legend=dict(x=0, y=1.1, orientation="h")
+                    title_text="時間帯別KPI平均値",
+                    legend=dict(x=0.5, y=1.1, xanchor="center", orientation="h")
                 )
                 
                 st.plotly_chart(fig_time_of_day, use_container_width=True)
