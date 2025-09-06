@@ -217,7 +217,7 @@ if st.button("分析を実行"):
 
                 fig_time_of_day = make_subplots(
                     rows=1, cols=3, 
-                    subplot_titles=("獲得支援point", "合計視聴数", "コメント数")
+                    # subplot_titlesを削除しました
                 )
                 
                 fig_time_of_day.add_trace(
@@ -252,13 +252,21 @@ if st.button("分析を実行"):
                 
                 fig_time_of_day.update_layout(
                     title_text="時間帯別KPI平均値",
-                    legend=dict(x=0.5, y=1.1, xanchor="center", orientation="h")
+                    # 凡例をグラフの下部中央に配置しました
+                    legend=dict(
+                        orientation="h",
+                        yanchor="top",
+                        y=-0.2,
+                        xanchor="center",
+                        x=0.5
+                    ),
+                    # 重なりを防ぐため、グラフの余白を調整
+                    margin=dict(t=50, b=100)
                 )
                 
                 st.plotly_chart(fig_time_of_day, use_container_width=True)
                 
-                # --- PC表示の調整 ---
-                # グラフと次のセクションの間に十分なスペースを確保します
+                # アイコン説明との間隔を空けるための空行を追加
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 
                 st.subheader("📝 配信ごとの詳細データ")
