@@ -41,20 +41,15 @@ def load_and_preprocess_data(member_id):
         # バイナリデータをStringIOで読み込める形に変換
         csv_data = io.StringIO(response.text)
         
-        # ヘッダーなしでCSVを読み込む
-        df = pd.read_csv(csv_data, header=None)
+        # CSVを読み込む
+        # この時点で、ヘッダーとデータ行の列数の不一致により最後の列が追加される
+        df = pd.read_csv(csv_data)
         
-        # CSVのヘッダー行を抽出
-        header_row = df.iloc[0].tolist()
-        # ヘッダー行の余分なカンマを削除
-        if header_row[-1] is None or pd.isna(header_row[-1]):
-            header_row.pop()
+        # 列名から前後の空白を削除
+        df.columns = df.columns.str.strip()
         
-        # データの最初の行（元のヘッダー）を削除
-        df = df.iloc[1:].copy()
-        
-        # 正しい列名を設定
-        df.columns = header_row
+        # ヘッダーとデータ行の列数が一致しない問題を解決するため、最後の列を削除
+        df = df.iloc[:, :-1]
 
         # データ型変換とクリーンアップ
         for col in [
