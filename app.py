@@ -542,7 +542,7 @@ if st.session_state.run_analysis:
                             font-size: 16px;
                             font-weight: 600;
                             color: #000000;
-                            margin-bottom: 5px;
+                            margin-bottom: -5px;
                         }}
                         .metric-value {{
                             font-size: 32px;
