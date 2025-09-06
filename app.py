@@ -107,14 +107,11 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
     combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
 
-    # --- 修正点: account_id が 'mksp' の場合はフィルタリングしない ---
     if account_id == "mksp":
         filtered_df = combined_df.copy()
     else:
-        # ユーザーが入力したアカウントIDでデータをフィルタリング
         filtered_df = combined_df[combined_df["アカウントID"] == account_id].copy()
     
-    # 日付範囲でさらにフィルタリング
     filtered_df = filtered_df[
         (filtered_df["配信日時"].dt.date >= start_date) & 
         (filtered_df["配信日時"].dt.date <= end_date)
@@ -124,7 +121,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         st.warning(f"指定されたアカウントID（{account_id}）のデータが選択された期間に見つかりませんでした。")
         return None
 
-    # データ型変換とクリーンアップ
     for col in [
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
         "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
@@ -135,6 +131,19 @@ def load_and_preprocess_data(account_id, start_date, end_date):
 
     return filtered_df
 
+# 時間帯を分類する関数
+def categorize_time_of_day(hour):
+    if 4 <= hour < 10:
+        return "早朝・午前"
+    elif 10 <= hour < 14:
+        return "昼"
+    elif 14 <= hour < 18:
+        return "午後"
+    elif 18 <= hour < 22:
+        return "夜"
+    else:
+        return "深夜"
+
 # 分析実行ボタン
 if st.button("分析を実行"):
     if len(selected_date_range) == 2:
@@ -144,12 +153,10 @@ if st.button("分析を実行"):
         if df is not None and not df.empty:
             st.success("データの読み込みと前処理が完了しました！")
             
-            # --- 修正点: 全員分析と個人分析で表示を分岐させる ---
             if account_id == "mksp":
                 st.subheader("💡 全ライバーの集計データ")
                 st.info("このビューでは、個人のフォロワー関連データは表示されません。")
                 
-                # 全体サマリー (全員分)
                 total_support_points = int(df["獲得支援point"].sum())
                 total_viewers = int(df["合計視聴数"].sum())
                 total_comments = int(df["コメント数"].sum())
@@ -158,13 +165,12 @@ if st.button("分析を実行"):
                 st.markdown(f"**合計視聴数:** {total_viewers:,} 人")
                 st.markdown(f"**合計コメント数:** {total_comments:,} 件")
 
-                # 全体データテーブル (個別表示)
                 st.subheader("📝 全ライバーの配信詳細データ")
                 df_display = df.sort_values(by="配信日時", ascending=False)
                 st.dataframe(df_display, hide_index=True)
 
             else:
-                # 個人分析の表示
+                # 個人分析
                 st.subheader("📈 主要KPIの推移")
                 df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
                 
@@ -205,6 +211,37 @@ if st.button("分析を実行"):
                 )
                 st.plotly_chart(fig, use_container_width=True)
                 
+                # --- 追加機能: 時間帯別分析 ---
+                st.subheader("📊 時間帯別パフォーマンス分析")
+                
+                # 時間帯のカテゴリ列を追加
+                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day)
+                
+                # 時間帯ごとに平均値を集計
+                time_of_day_kpis = df.groupby('時間帯').agg({
+                    '獲得支援point': 'mean',
+                    '合計視聴数': 'mean',
+                    'コメント数': 'mean'
+                }).reset_index()
+
+                # グラフの作成
+                time_of_day_kpis = time_of_day_kpis.sort_values('時間帯', ascending=True, key=lambda x: x.map({
+                    "早朝・午前": 0, "昼": 1, "午後": 2, "夜": 3, "深夜": 4
+                }))
+
+                fig_time_of_day = px.bar(
+                    time_of_day_kpis,
+                    x="時間帯",
+                    y=["獲得支援point", "合計視聴数", "コメント数"],
+                    title="時間帯別KPI平均値",
+                    labels={
+                        "value": "平均値",
+                        "variable": "KPI"
+                    },
+                    barmode='group'
+                )
+                st.plotly_chart(fig_time_of_day, use_container_width=True)
+
                 st.subheader("📝 配信ごとの詳細データ")
                 df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
                 st.dataframe(df_display, hide_index=True)
