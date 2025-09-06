@@ -221,7 +221,7 @@ if st.button("分析を実行"):
 
                 fig_time_of_day = make_subplots(
                     rows=3, cols=1, 
-                    subplot_titles=("獲得支援point", "合計視聴数", "コメント数"),
+                    subplot_titles=(), # タイトルを完全に削除しました
                 )
                 
                 fig_time_of_day.add_trace(
@@ -259,13 +259,11 @@ if st.button("分析を実行"):
                 
                 fig_time_of_day.update_layout(
                     title_text="時間帯別KPI平均値",
-                    # 凡例を非表示にしました。サブプロットタイトルが凡例の役割を兼ねます。
                     showlegend=False,
-                    # PCでの縦横比調整
+                    # PCでの縦横比を最適化
                     height=800,
-                    # スマホでの文字サイズ調整
-                    font=dict(size=12),
-                    # スマホでの余白調整
+                    # スマホでの文字サイズと余白を調整
+                    font=dict(size=10),
                     margin=dict(t=50, b=100, l=40, r=40)
                 )
 
