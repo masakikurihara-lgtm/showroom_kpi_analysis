@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import io
 import requests
+import re
 
 # ページ設定
 st.set_page_config(
@@ -44,12 +45,12 @@ def load_and_preprocess_data(member_id):
         # CSVを読み込む
         df = pd.read_csv(csv_data)
 
-        # 列名から前後の空白を削除
-        df.columns = df.columns.str.strip()
+        # 列名から前後の空白と、見えない特殊文字を削除
+        df.columns = df.columns.str.replace(r'[\s\u200b\ufeff]+', '', regex=True)
         
         # CSVの最終列が余分なデータなので削除
         df = df.iloc[:, :-1]
-
+        
         # データ型変換とクリーンアップ
         for col in [
             "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
