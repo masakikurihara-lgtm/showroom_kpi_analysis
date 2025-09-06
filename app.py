@@ -38,24 +38,30 @@ def load_and_preprocess_data(member_id):
         response = requests.get(url)
         response.raise_for_status()  # HTTPエラーをチェック
         
-        # バイナリデータをStringIOで読み込める形に変換
-        csv_data = io.StringIO(response.text)
+        # BOM付きUTF-8に対応するため、decode('utf-8-sig')を使用
+        csv_text = response.content.decode('utf-8-sig')
         
-        # ヘッダーなしでCSVを読み込む
-        df = pd.read_csv(csv_data, header=None)
+        # 各行を処理
+        lines = csv_text.strip().split('\n')
         
-        # CSVのヘッダー行を抽出
-        header_row = df.iloc[0].tolist()
+        # 最初の行（ヘッダー）とそれ以降の行を分離
+        header_line = lines[0]
+        data_lines = lines[1:]
         
-        # データの最初の行（元のヘッダー）を削除
-        df = df.iloc[1:].copy()
+        # ヘッダーとデータ行の列数を一致させるため、余分な列を削除
+        cleaned_data_lines = [','.join(line.split(',')[:-1]) for line in data_lines]
         
-        # ヘッダー行の余分なカンマ（NaN）を削除し、列名に設定
-        header_row = [col for col in header_row if pd.notna(col)]
-        df.columns = header_row
+        # ヘッダーとクリーンアップされたデータを結合
+        cleaned_csv_text = header_line + '\n' + '\n'.join(cleaned_data_lines)
         
-        # データ行の余分な最後の列を削除
-        df = df.iloc[:, :-1]
+        # StringIOを使ってpandasに渡す
+        csv_data = io.StringIO(cleaned_csv_text)
+        
+        # CSVを読み込む
+        df = pd.read_csv(csv_data)
+        
+        # 列名から前後の空白と引用符を削除
+        df.columns = df.columns.str.strip().str.replace('"', '')
 
         # データ型変換とクリーンアップ
         for col in [
@@ -67,7 +73,10 @@ def load_and_preprocess_data(member_id):
                 df[col] = df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
         
         # "配信日時"列をdatetime型に変換
-        df["配信日時"] = pd.to_datetime(df["配信日時"])
+        if "配信日時" in df.columns:
+            df["配信日時"] = pd.to_datetime(df["配信日時"])
+        else:
+            raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
 
         return df
 
