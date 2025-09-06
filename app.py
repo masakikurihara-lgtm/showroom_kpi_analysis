@@ -522,15 +522,15 @@ if st.session_state.run_analysis:
                 
                 # 初見訪問者率
                 with col1:
-                    first_time_df = df_display.dropna(subset=['初ルーム来訪者数', '視聴会員数'])
-                    total_members_for_first_time = first_time_df["視聴会員数"].sum()
+                    first_time_df = df_display.dropna(subset=['初ルーム来訪者数', '合計視聴数'])
+                    total_members_for_first_time = first_time_df["合計視聴数"].sum()
                     first_time_visitors = first_time_df["初ルーム来訪者数"].sum()
                     first_time_rate = f"{first_time_visitors / total_members_for_first_time * 100:.1f}%" if total_members_for_first_time > 0 else "0%"
                     
                     # MK平均値と中央値
-                    mk_first_time_df = df.dropna(subset=['初ルーム来訪者数', '視聴会員数'])
-                    mk_avg_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['視聴会員数']).mean() * 100 if not mk_first_time_df.empty else 0
-                    mk_median_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['視聴会員数']).median() * 100 if not mk_first_time_df.empty else 0
+                    mk_first_time_df = df.dropna(subset=['初ルーム来訪者数', '合計視聴数'])
+                    mk_avg_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).mean() * 100 if not mk_first_time_df.empty else 0
+                    mk_median_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).median() * 100 if not mk_first_time_df.empty else 0
                     
                     metric_html = f"""
                     <style>
@@ -620,15 +620,15 @@ if st.session_state.run_analysis:
 
                 # 短時間滞在者率
                 with col4:
-                    short_stay_df = df_display.dropna(subset=['短時間滞在者数', '合計視聴数'])
-                    total_viewers_for_short_stay = short_stay_df["合計視聴数"].sum()
+                    short_stay_df = df_display.dropna(subset=['短時間滞在者数', '視聴会員数'])
+                    total_viewers_for_short_stay = short_stay_df["視聴会員数"].sum()
                     short_stay_visitors = short_stay_df["短時間滞在者数"].sum()
                     short_stay_rate = f"{short_stay_visitors / total_viewers_for_short_stay * 100:.1f}%" if total_viewers_for_short_stay > 0 else "0%"
                     
                     # MK平均値と中央値
-                    mk_short_stay_df = df.dropna(subset=['短時間滞在者数', '合計視聴数'])
-                    mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['合計視聴数']).mean() * 100 if not mk_short_stay_df.empty else 0
-                    mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['合計視聴数']).median() * 100 if not mk_short_stay_df.empty else 0
+                    mk_short_stay_df = df.dropna(subset=['短時間滞在者数', '視聴会員数'])
+                    mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).mean() * 100 if not mk_short_stay_df.empty else 0
+                    mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).median() * 100 if not mk_short_stay_df.empty else 0
 
                     metric_html = f"""
                     <div class="stMetric-container">
