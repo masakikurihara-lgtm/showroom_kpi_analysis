@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 import time # API呼び出し間の待機時間のために追加
+import browsing # ウェブページのブラウジングツールをインポート
 
 # ページ設定
 st.set_page_config(
@@ -146,63 +147,80 @@ def categorize_time_of_day_with_range(hour):
 
 def add_event_info_to_df(df, room_id):
     """
-    DataFrameにイベント情報を追加する（新しいAPIを使用）
+    DataFrameにイベント情報を追加する（ブラウジングツールを使用）
     """
     if room_id is None:
         st.warning("ルームIDが取得できませんでした。イベント情報は追加されません。")
         df['参加イベント'] = '情報なし'
         return df
 
-    st.info("APIからイベント情報を取得中です。この処理には時間がかかる場合があります。")
+    st.info("終了済みイベント一覧を取得し、各イベントページを検索して参加情報を確認中です。この処理には時間がかかります。")
     
-    url = f"https://www.showroom-live.com/api/room/event_and_support?room_id={room_id}"
-    
+    # 終了済みイベントリストを取得
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get("https://www.showroom-live.com/api/event/search?status=4", timeout=10)
         response.raise_for_status()
-        data = response.json()
-        
-        events_in_progress = data.get("current_event_list", [])
-        
-        participated_events = []
-        if events_in_progress:
-            for event in events_in_progress:
-                event_info = event.get("event")
-                if event_info:
-                    event_url_key = event_info.get("event_url_key")
-                    event_name = event_url_key.split('/')[-1] if event_url_key else "不明なイベント"
-                    
-                    participated_events.append({
-                        'event_name': event_name,
-                        'start_date': pd.to_datetime(event_info.get("started_at"), unit='s'),
-                        'end_date': pd.to_datetime(event_info.get("ended_at"), unit='s')
-                    })
-        
-        if not participated_events:
-            st.warning(f"ルームID {room_id} は現在、イベントに参加していません。")
-            df['参加イベント'] = '情報なし'
-            return df
-        
-        participated_df = pd.DataFrame(participated_events)
-        
-        df['参加イベント'] = '通常配信'
-        for index, row in df.iterrows():
-            matched_events = participated_df[
-                (participated_df['start_date'] <= row['配信日時']) & 
-                (participated_df['end_date'] >= row['配信日時'])
-            ]['event_name']
-
-            if not matched_events.empty:
-                df.loc[index, '参加イベント'] = ' / '.join(matched_events.unique())
-
-        st.success("イベント情報の取得と紐づけが完了しました。")
-        return df
-    
+        events_list = response.json().get("event_list", [])
     except requests.exceptions.RequestException as e:
-        st.error(f"APIからのイベント情報取得に失敗しました。詳細: {e}")
-        st.error(f"ステータスコード: {response.status_code if 'response' in locals() else 'N/A'}")
+        st.error(f"イベントリストの取得に失敗しました: {e}")
         df['参加イベント'] = '情報なし'
         return df
+
+    if not events_list:
+        st.warning("終了済みイベントのリストが見つかりませんでした。")
+        df['参加イベント'] = '情報なし'
+        return df
+
+    participated_events = []
+    progress_bar = st.progress(0)
+    
+    # 各イベントページをブラウジングしてルームIDを検索
+    for i, event in enumerate(events_list):
+        event_url_key = event.get("event_url_key")
+        if not event_url_key:
+            continue
+            
+        event_url = f"https://www.showroom-live.com/event/{event_url_key}"
+        event_name = event.get("event_name", "不明なイベント")
+        
+        try:
+            # ブラウジングツールでページを読み込み、ルームIDを検索
+            query = f"HTML内のルームID {room_id} を探す"
+            page_content = browsing.browse(query=query, url=event_url)
+            
+            if str(room_id) in page_content:
+                st.write(f"✅ ルームID {room_id} がイベント '{event_name}' で見つかりました！")
+                participated_events.append({
+                    'event_name': event_name,
+                    'start_date': pd.to_datetime(event.get("started_at"), unit='s'),
+                    'end_date': pd.to_datetime(event.get("ended_at"), unit='s')
+                })
+        except Exception as e:
+            st.warning(f"イベントページ '{event_name}' のブラウジングに失敗しました。詳細: {e}")
+            
+        progress_bar.progress((i + 1) / len(events_list))
+        time.sleep(0.5) # サーバー負荷軽減のため、待機時間を設ける
+
+    if not participated_events:
+        st.warning(f"ルームID {room_id} の過去の参加イベントが見つかりませんでした。")
+        df['参加イベント'] = '情報なし'
+        return df
+        
+    participated_df = pd.DataFrame(participated_events)
+    
+    # 各配信に該当するイベントを紐づけ
+    df['参加イベント'] = '通常配信'
+    for index, row in df.iterrows():
+        matched_events = participated_df[
+            (participated_df['start_date'] <= row['配信日時']) & 
+            (participated_df['end_date'] >= row['配信日時'])
+        ]['event_name']
+
+        if not matched_events.empty:
+            df.loc[index, '参加イベント'] = ' / '.join(matched_events.unique())
+    
+    st.success("イベント情報の取得と紐づけが完了しました。")
+    return df
 
 if st.button("分析を実行"):
     if len(selected_date_range) == 2:
