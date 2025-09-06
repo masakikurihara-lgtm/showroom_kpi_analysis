@@ -114,7 +114,8 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数"
     ]:
         if col in filtered_df.columns:
-            filtered_df[col] = filtered_df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
+            filtered_df[col] = pd.to_numeric(filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
+
     
     if "ルームID" in filtered_df.columns and not filtered_df.empty:
         room_id = filtered_df["ルームID"].iloc[0]
@@ -321,11 +322,12 @@ if st.button("分析を実行"):
                 st.dataframe(df_display, hide_index=True)
 
                 st.subheader("その他数値分析")
-                col1, col2, col3, col4 = st.columns(4) # 4列に戻す
+                col1, col2, col3, col4 = st.columns(4) 
                 
                 with col1:
                     # 短時間滞在者率の計算
-                    short_stay_df = df_sorted_asc.dropna(subset=['短時間滞在者数'])
+                    # '短時間滞在者数'列が存在することを確認し、NaN値がある行を排除して合計を算出
+                    short_stay_df = df_display.dropna(subset=['短時間滞在者数'])
                     total_viewers_for_short_stay = short_stay_df["合計視聴数"].sum()
                     short_stay_visitors = short_stay_df["短時間滞在者数"].sum()
                     st.metric(
@@ -336,7 +338,7 @@ if st.button("分析を実行"):
 
                 with col2:
                     # 初見訪問者率の計算
-                    first_time_df = df_sorted_asc.dropna(subset=['初ルーム来訪者数'])
+                    first_time_df = df_display.dropna(subset=['初ルーム来訪者数'])
                     total_members_for_first_time = first_time_df["視聴会員数"].sum()
                     first_time_visitors = first_time_df["初ルーム来訪者数"].sum()
                     st.metric(
@@ -347,7 +349,7 @@ if st.button("分析を実行"):
                     
                 with col3:
                     # 初コメント率の計算
-                    comment_df = df_sorted_asc.dropna(subset=['初コメント人数'])
+                    comment_df = df_display.dropna(subset=['初コメント人数'])
                     total_commenters = comment_df["コメント人数"].sum()
                     first_time_commenters = comment_df["初コメント人数"].sum()
                     st.metric(
@@ -358,7 +360,7 @@ if st.button("分析を実行"):
 
                 with col4:
                     # 初ギフト率の計算
-                    gift_df = df_sorted_asc.dropna(subset=['初ギフト人数'])
+                    gift_df = df_display.dropna(subset=['初ギフト人数'])
                     total_gifters = gift_df["ギフト人数"].sum()
                     first_time_gifters = gift_df["初ギフト人数"].sum()
                     st.metric(
@@ -368,10 +370,10 @@ if st.button("分析を実行"):
                     )
 
                 st.subheader("📝 全体サマリー")
-                total_support_points = int(df_sorted_asc["獲得支援point"].sum())
-                if not df_sorted_asc.empty:
-                    total_followers = int(df_sorted_asc["フォロワー数"].iloc[-1])
-                    initial_followers = int(df_sorted_asc["フォロワー数"].iloc[0])
+                total_support_points = int(df_display["獲得支援point"].sum())
+                if "フォロワー数" in df_display.columns and not df_display.empty:
+                    total_followers = int(df_display["フォロワー数"].iloc[-1])
+                    initial_followers = int(df_display["フォロワー数"].iloc[0])
                     total_follower_increase = total_followers - initial_followers
                     st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
                     st.markdown(f"**最終フォロワー数:** {total_followers:,} 人")
@@ -380,8 +382,8 @@ if st.button("分析を実行"):
 
                 
                 st.subheader("💡 今後の戦略的示唆")
-                avg_support_per_viewer = (df_sorted_asc["獲得支援point"] / df_sorted_asc["視聴会員数"]).mean()
-                avg_comments_per_viewer = (df_sorted_asc["コメント人数"] / df_sorted_asc["視聴会員数"]).mean()
+                avg_support_per_viewer = (df_display["獲得支援point"] / df_display["視聴会員数"]).mean()
+                avg_comments_per_viewer = (df_display["コメント人数"] / df_display["視聴会員数"]).mean()
                 
                 if avg_support_per_viewer > 50:
                     st.markdown("👉 視聴会員数あたりの獲得支援ポイントが高い傾向にあります。熱心なファン層が定着しているようです。")
