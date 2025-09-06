@@ -176,7 +176,7 @@ if st.button("分析を実行"):
                 time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
                 
-                time_of_day_counts = df.groupby('時間帯').size().reindex(time_of_day_order).fillna(0)
+                time_of_day_counts = df.groupby('時間帯').size().reindex(time_of_day_order, fill_value=0)
 
                 col1, col2, col3 = st.columns(3)
 
@@ -369,7 +369,8 @@ if st.button("分析を実行"):
                 time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
                 
-                time_of_day_counts = df.groupby('時間帯').size().reindex(time_of_day_order).fillna(0)
+                time_of_day_counts = df.groupby('時間帯').size().reindex(time_of_day_order, fill_value=0)
+
 
                 col1, col2, col3 = st.columns(3)
 
