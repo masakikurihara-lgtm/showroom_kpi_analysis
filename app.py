@@ -44,15 +44,16 @@ def load_and_preprocess_data(member_id):
         # pandasでCSVを読み込む
         df = pd.read_csv(csv_data)
         
-        # 不要な列の削除
+        # 列名から不要な列を削除
+        # errors='ignore'を追加することで、存在しない列があってもエラーを発生させずに続行
         df = df.drop(columns=[
-            "2023年9月以前のおまけ分(無償SG RS外)",
             "アカウントID",
             "ルームID",
             "連続配信日数",
-            "ルーム名",
-        ])
-
+            "ルーム名", # CSVに存在しないため、errors='ignore'で無視
+            "2023年9月以前のおまけ分(無償SG RS外)" # CSVに存在しないため、errors='ignore'で無視
+        ], errors='ignore')
+        
         # データ型変換とクリーンアップ
         for col in [
             "合計視聴数",
@@ -66,6 +67,7 @@ def load_and_preprocess_data(member_id):
             if col in df.columns:
                 df[col] = df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
         
+        # "配信日時"列をdatetime型に変換
         df["配信日時"] = pd.to_datetime(df["配信日時"])
         
         return df
