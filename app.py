@@ -121,8 +121,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         room_id = filtered_df["ルームID"].iloc[0]
     else:
         room_id = None
-        st.warning("詳細データにルームIDが見つかりませんでした。イベント情報は取得できません。")
-
+        
     return filtered_df, room_id
 
 def categorize_time_of_day_with_range(hour):
@@ -144,96 +143,6 @@ def categorize_time_of_day_with_range(hour):
         return "夜後半 (22-24時)"
     else:
         return "深夜 (0-3時)"
-
-def add_event_info_to_df(df, room_id):
-    """
-    DataFrameにイベント情報を追加する（ウェブスクレイピングを使用）
-    """
-    if room_id is None:
-        st.warning("ルームIDが取得できませんでした。イベント情報は追加されません。")
-        df['参加イベント'] = '情報なし'
-        return df
-
-    st.info("終了済みイベント一覧を取得し、各イベントページを検索して参加情報を確認中です。この処理には非常に時間がかかります。")
-
-    all_events_list = []
-    next_page_id = 1
-    
-    # next_pageを使ってすべての終了済みイベントリストを取得
-    while next_page_id is not None:
-        try:
-            url = f"https://www.showroom-live.com/api/event/search?status=4&page={next_page_id}"
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            event_list = data.get("event_list", [])
-            all_events_list.extend(event_list)
-            
-            next_page_id = data.get("next_page")
-            st.info(f"ページ {next_page_id-1 if next_page_id else '最終'} のイベントリストを取得しました。次のページへ進みます。")
-            time.sleep(1) # サーバー負荷軽減のため待機
-            
-        except requests.exceptions.RequestException as e:
-            st.error(f"イベントリストの取得に失敗しました: {e}")
-            break
-
-    if not all_events_list:
-        st.warning("終了済みイベントのリストが見つかりませんでした。")
-        df['参加イベント'] = '情報なし'
-        return df
-
-    participated_events = []
-    progress_bar = st.progress(0)
-    
-    # 各イベントページをスクレイピングしてルームIDを検索
-    for i, event in enumerate(all_events_list):
-        event_url_key = event.get("event_url_key")
-        if not event_url_key:
-            continue
-            
-        event_url = f"https://www.showroom-live.com/event/{event_url_key}"
-        event_name = event.get("event_name", "不明なイベント")
-        
-        try:
-            response = requests.get(event_url, timeout=5)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # HTML内にルームIDが存在するか検索
-            if soup.find(string=lambda text: text and str(room_id) in text):
-                st.write(f"✅ ルームID {room_id} がイベント '{event_name}' で見つかりました！")
-                participated_events.append({
-                    'event_name': event_name,
-                    'start_date': pd.to_datetime(event.get("started_at"), unit='s'),
-                    'end_date': pd.to_datetime(event.get("ended_at"), unit='s')
-                })
-        except requests.exceptions.RequestException as e:
-            st.warning(f"イベントページ '{event_name}' の取得に失敗しました。詳細: {e}")
-            
-        progress_bar.progress((i + 1) / len(all_events_list))
-        time.sleep(1) # サーバー負荷軽減のため待機時間を設ける
-
-    if not participated_events:
-        st.warning(f"ルームID {room_id} の過去の参加イベントが見つかりませんでした。")
-        df['参加イベント'] = '情報なし'
-        return df
-        
-    participated_df = pd.DataFrame(participated_events)
-    
-    # 各配信に該当するイベントを紐づけ
-    df['参加イベント'] = '通常配信'
-    for index, row in df.iterrows():
-        matched_events = participated_df[
-            (participated_df['start_date'] <= row['配信日時']) & 
-            (participated_df['end_date'] >= row['配信日時'])
-        ]['event_name']
-
-        if not matched_events.empty:
-            df.loc[index, '参加イベント'] = ' / '.join(matched_events.unique())
-    
-    st.success("イベント情報の取得と紐づけが完了しました。")
-    return df
 
 if st.button("分析を実行"):
     if len(selected_date_range) == 2:
@@ -601,10 +510,7 @@ if st.button("分析を実行"):
                 
                 st.subheader("📝 配信ごとの詳細データ")
                 
-                # イベント情報を追加
-                df_with_events = add_event_info_to_df(df, room_id)
-                
-                df_display = df_with_events.sort_values(by="配信日時", ascending=False)
+                df_display = df.sort_values(by="配信日時", ascending=False)
                 st.dataframe(df_display, hide_index=True)
 
                 st.subheader("🎯 初見/リピーター分析")
