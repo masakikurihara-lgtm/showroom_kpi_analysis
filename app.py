@@ -176,15 +176,15 @@ if st.button("分析を実行"):
                 time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
                 
-                time_of_day_counts = df.groupby('時間帯').size().reindex(time_of_day_order, fill_value=0)
-
+                time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
+                
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
                     fig1 = go.Figure(go.Bar(
                         x=time_of_day_kpis_mean['時間帯'],
                         y=time_of_day_kpis_mean['獲得支援point'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
                         textposition='auto',
                         marker_color='#1f77b4',
                         name='獲得支援point'
@@ -203,7 +203,7 @@ if st.button("分析を実行"):
                     fig2 = go.Figure(go.Bar(
                         x=time_of_day_kpis_mean['時間帯'],
                         y=time_of_day_kpis_mean['合計視聴数'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
                         textposition='auto',
                         marker_color='#ff7f0e',
                         name='合計視聴数'
@@ -222,7 +222,7 @@ if st.button("分析を実行"):
                     fig3 = go.Figure(go.Bar(
                         x=time_of_day_kpis_mean['時間帯'],
                         y=time_of_day_kpis_mean['コメント数'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
                         textposition='auto',
                         marker_color='#2ca02c',
                         name='コメント数'
@@ -255,7 +255,7 @@ if st.button("分析を実行"):
                     fig4 = go.Figure(go.Bar(
                         x=time_of_day_kpis_median['時間帯'],
                         y=time_of_day_kpis_median['獲得支援point'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
                         textposition='auto',
                         marker_color='#1f77b4',
                         name='獲得支援point'
@@ -274,7 +274,7 @@ if st.button("分析を実行"):
                     fig5 = go.Figure(go.Bar(
                         x=time_of_day_kpis_median['時間帯'],
                         y=time_of_day_kpis_median['合計視聴数'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
                         textposition='auto',
                         marker_color='#ff7f0e',
                         name='合計視聴数'
@@ -293,7 +293,7 @@ if st.button("分析を実行"):
                     fig6 = go.Figure(go.Bar(
                         x=time_of_day_kpis_median['時間帯'],
                         y=time_of_day_kpis_median['コメント数'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
                         textposition='auto',
                         marker_color='#2ca02c',
                         name='コメント数'
@@ -369,8 +369,7 @@ if st.button("分析を実行"):
                 time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
                 
-                time_of_day_counts = df.groupby('時間帯').size().reindex(time_of_day_order, fill_value=0)
-
+                time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
 
                 col1, col2, col3 = st.columns(3)
 
@@ -378,7 +377,7 @@ if st.button("分析を実行"):
                     fig1 = go.Figure(go.Bar(
                         x=time_of_day_kpis_mean['時間帯'],
                         y=time_of_day_kpis_mean['獲得支援point'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
                         textposition='auto',
                         marker_color='#1f77b4',
                         name='獲得支援point'
@@ -397,7 +396,7 @@ if st.button("分析を実行"):
                     fig2 = go.Figure(go.Bar(
                         x=time_of_day_kpis_mean['時間帯'],
                         y=time_of_day_kpis_mean['合計視聴数'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
                         textposition='auto',
                         marker_color='#ff7f0e',
                         name='合計視聴数'
@@ -416,7 +415,7 @@ if st.button("分析を実行"):
                     fig3 = go.Figure(go.Bar(
                         x=time_of_day_kpis_mean['時間帯'],
                         y=time_of_day_kpis_mean['コメント数'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
                         textposition='auto',
                         marker_color='#2ca02c',
                         name='コメント数'
@@ -449,7 +448,7 @@ if st.button("分析を実行"):
                     fig4 = go.Figure(go.Bar(
                         x=time_of_day_kpis_median['時間帯'],
                         y=time_of_day_kpis_median['獲得支援point'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
                         textposition='auto',
                         marker_color='#1f77b4',
                         name='獲得支援point'
@@ -468,7 +467,7 @@ if st.button("分析を実行"):
                     fig5 = go.Figure(go.Bar(
                         x=time_of_day_kpis_median['時間帯'],
                         y=time_of_day_kpis_median['合計視聴数'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
                         textposition='auto',
                         marker_color='#ff7f0e',
                         name='合計視聴数'
@@ -487,7 +486,7 @@ if st.button("分析を実行"):
                     fig6 = go.Figure(go.Bar(
                         x=time_of_day_kpis_median['時間帯'],
                         y=time_of_day_kpis_median['コメント数'],
-                        text=time_of_day_counts.values,
+                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
                         textposition='auto',
                         marker_color='#2ca02c',
                         name='コメント数'
