@@ -41,17 +41,19 @@ def load_and_preprocess_data(member_id):
         # バイナリデータをStringIOで読み込める形に変換
         csv_data = io.StringIO(response.text)
         
-        # pandasでCSVを読み込む
-        df = pd.read_csv(csv_data)
+        # pandasでCSVを読み込む。文字化け防止のためencodingを指定
+        df = pd.read_csv(csv_data, encoding='utf-8')
         
+        # 列名から不要な引用符を削除
+        df.columns = df.columns.str.replace('"', '')
+
         # 列名から不要な列を削除
-        # errors='ignore'を追加することで、存在しない列があってもエラーを発生させずに続行
         df = df.drop(columns=[
             "アカウントID",
             "ルームID",
             "連続配信日数",
-            "ルーム名", # CSVに存在しないため、errors='ignore'で無視
-            "2023年9月以前のおまけ分(無償SG RS外)" # CSVに存在しないため、errors='ignore'で無視
+            "ルーム名",
+            "2023年9月以前のおまけ分(無償SG RS外)"
         ], errors='ignore')
         
         # データ型変換とクリーンアップ
