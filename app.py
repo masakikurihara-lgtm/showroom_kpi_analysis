@@ -17,7 +17,7 @@ st.set_page_config(
 st.title("SHOWROOMライバーKPI分析ツール")
 st.markdown("ライブ配信データから、フォロワーやポイント獲得の傾向を分析し、今後の戦略を検討しましょう。")
 
-# アカウントIDの入力フィールド
+# 入力フィールド
 account_id = st.text_input(
     "分析したいライバーの**アカウントID**を入力してください",
     ""
