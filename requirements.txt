@@ -1,6 +1,6 @@
 streamlit
-requests
 pandas
 numpy
-tabulate
 plotly
+requests
+browsing
