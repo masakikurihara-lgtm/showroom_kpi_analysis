@@ -273,7 +273,8 @@ if st.button("分析を実行"):
                     )
                     st.plotly_chart(fig3, use_container_width=True)
                 
-                st.markdown("<br><br>", unsafe_allow_html=True)
+                # 以下の行が余白の原因です。この行を削除します。
+                # st.markdown("<br><br>", unsafe_allow_html=True)
                 
                 st.subheader("📝 配信ごとの詳細データ")
                 df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
