@@ -122,7 +122,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     for col in [
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
         "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
-        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数" # <- ここに「初ルーム来訪者数」を追加しました
+        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数"
     ]:
         if col in filtered_df.columns:
             filtered_df[col] = filtered_df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
