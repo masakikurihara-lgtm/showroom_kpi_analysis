@@ -319,198 +319,6 @@ if st.session_state.run_analysis:
                         margin=dict(t=50, b=0, l=40, r=40)
                     )
                     st.plotly_chart(fig6, use_container_width=True)
-            
-            else: # 個別アカウントIDの場合
-                st.subheader("📈 主要KPIの推移")
-                df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
-                
-                fig = go.Figure()
-
-                fig.add_trace(go.Scatter(
-                    x=df_sorted_asc["配信日時"],
-                    y=df_sorted_asc["獲得支援point"],
-                    name="獲得支援point",
-                    mode='lines+markers',
-                    marker=dict(symbol='circle')
-                ))
-
-                fig.add_trace(go.Scatter(
-                    x=df_sorted_asc["配信日時"],
-                    y=df_sorted_asc["配信時間(分)"],
-                    name="配信時間(分)",
-                    mode='lines+markers',
-                    yaxis="y2",
-                    marker=dict(symbol='square')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=df_sorted_asc["配信日時"],
-                    y=df_sorted_asc["合計視聴数"],
-                    name="合計視聴数",
-                    mode='lines+markers',
-                    yaxis="y2",
-                    marker=dict(symbol='star')
-                ))
-
-                fig.update_layout(
-                    title="KPIの推移（配信時間別）",
-                    xaxis=dict(title="配信日時"),
-                    yaxis=dict(title="獲得支援point", side="left", showgrid=False),
-                    yaxis2=dict(title="配信時間・視聴数", overlaying="y", side="right"),
-                    legend=dict(x=0, y=1.1, orientation="h"),
-                    hovermode="x unified"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                st.subheader("📊 時間帯別パフォーマンス分析 (平均値)")
-                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
-                
-                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
-                
-                time_of_day_kpis_mean = df.groupby('時間帯').agg({
-                    '獲得支援point': 'mean',
-                    '合計視聴数': 'mean',
-                    'コメント数': 'mean'
-                }).reset_index()
-
-                time_of_day_order = [
-                    "深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", 
-                    "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
-                    "夜ピーク (21-22時)", "夜後半 (22-24時)"
-                ]
-                time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
-                time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
-                
-                time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    fig1 = go.Figure(go.Bar(
-                        x=time_of_day_kpis_mean['時間帯'],
-                        y=time_of_day_kpis_mean['獲得支援point'],
-                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
-                        textposition='auto',
-                        marker_color='#1f77b4',
-                        name='獲得支援point'
-                    ))
-                    fig1.update_layout(
-                        title_text="獲得支援point",
-                        title_font_size=16,
-                        yaxis=dict(title="獲得支援point", title_font_size=14),
-                        font=dict(size=12),
-                        height=400,
-                        margin=dict(t=50, b=0, l=40, r=40)
-                    )
-                    st.plotly_chart(fig1, use_container_width=True)
-                
-                with col2:
-                    fig2 = go.Figure(go.Bar(
-                        x=time_of_day_kpis_mean['時間帯'],
-                        y=time_of_day_kpis_mean['合計視聴数'],
-                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
-                        textposition='auto',
-                        marker_color='#ff7f0e',
-                        name='合計視聴数'
-                    ))
-                    fig2.update_layout(
-                        title_text="合計視聴数",
-                        title_font_size=16,
-                        yaxis=dict(title="合計視聴数", title_font_size=14),
-                        font=dict(size=12),
-                        height=400,
-                        margin=dict(t=50, b=0, l=40, r=40)
-                    )
-                    st.plotly_chart(fig2, use_container_width=True)
-
-                with col3:
-                    fig3 = go.Figure(go.Bar(
-                        x=time_of_day_kpis_mean['時間帯'],
-                        y=time_of_day_kpis_mean['コメント数'],
-                        text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']],
-                        textposition='auto',
-                        marker_color='#2ca02c',
-                        name='コメント数'
-                    ))
-                    fig3.update_layout(
-                        title_text="コメント数",
-                        title_font_size=16,
-                        yaxis=dict(title="コメント数", title_font_size=14),
-                        font=dict(size=12),
-                        height=400,
-                        margin=dict(t=50, b=0, l=40, r=40)
-                    )
-                    st.plotly_chart(fig3, use_container_width=True)
-
-                st.subheader("📊 時間帯別パフォーマンス分析 (中央値)")
-                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**中央値**を示しています。突出した値の影響を受けにくく、一般的な傾向を把握するのに役立ちます。棒上の数字は、その時間帯の配信件数です。")
-                
-                time_of_day_kpis_median = df.groupby('時間帯').agg({
-                    '獲得支援point': 'median',
-                    '合計視聴数': 'median',
-                    'コメント数': 'median'
-                }).reset_index()
-
-                time_of_day_kpis_median['時間帯'] = pd.Categorical(time_of_day_kpis_median['時間帯'], categories=time_of_day_order, ordered=True)
-                time_of_day_kpis_median = time_of_day_kpis_median.sort_values('時間帯')
-                
-                col4, col5, col6 = st.columns(3)
-                
-                with col4:
-                    fig4 = go.Figure(go.Bar(
-                        x=time_of_day_kpis_median['時間帯'],
-                        y=time_of_day_kpis_median['獲得支援point'],
-                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
-                        textposition='auto',
-                        marker_color='#1f77b4',
-                        name='獲得支援point'
-                    ))
-                    fig4.update_layout(
-                        title_text="獲得支援point (中央値)",
-                        title_font_size=16,
-                        yaxis=dict(title="獲得支援point", title_font_size=14),
-                        font=dict(size=12),
-                        height=400,
-                        margin=dict(t=50, b=0, l=40, r=40)
-                    )
-                    st.plotly_chart(fig4, use_container_width=True)
-                
-                with col5:
-                    fig5 = go.Figure(go.Bar(
-                        x=time_of_day_kpis_median['時間帯'],
-                        y=time_of_day_kpis_median['合計視聴数'],
-                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
-                        textposition='auto',
-                        marker_color='#ff7f0e',
-                        name='合計視聴数'
-                    ))
-                    fig5.update_layout(
-                        title_text="合計視聴数 (中央値)",
-                        title_font_size=16,
-                        yaxis=dict(title="合計視聴数", title_font_size=14),
-                        font=dict(size=12),
-                        height=400,
-                        margin=dict(t=50, b=0, l=40, r=40)
-                    )
-                    st.plotly_chart(fig5, use_container_width=True)
-
-                with col6:
-                    fig6 = go.Figure(go.Bar(
-                        x=time_of_day_kpis_median['時間帯'],
-                        y=time_of_day_kpis_median['コメント数'],
-                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
-                        textposition='auto',
-                        marker_color='#2ca02c',
-                        name='コメント数'
-                    ))
-                    fig6.update_layout(
-                        title_text="コメント数 (中央値)",
-                        title_font_size=16,
-                        yaxis=dict(title="コメント数", title_font_size=14),
-                        font=dict(size=12),
-                        height=400,
-                        margin=dict(t=50, b=0, l=40, r=40)
-                    )
-                    st.plotly_chart(fig6, use_container_width=True)
                 
                 st.subheader("📝 配信ごとの詳細データ")
                 
@@ -533,12 +341,38 @@ if st.session_state.run_analysis:
                     mk_avg_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['視聴会員数']).mean() * 100
                     mk_median_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['視聴会員数']).median() * 100
                     
-                    st.metric(
-                        label="初見訪問者率",
-                        value=first_time_rate,
-                        help="合計視聴会員数に対する初ルーム来訪者数の割合です。新規ファン獲得の効率を示します。"
-                    )
-                    st.caption(f"（MK平均値：{mk_avg_rate:.1f}% / MK中央値：{mk_median_rate:.1f}%）")
+                    # HTMLとCSSでレイアウトを直接構築
+                    metric_html = f"""
+                    <style>
+                        .stMetric-container {{
+                            background-color: transparent;
+                            border: none;
+                        }}
+                        .metric-label {{
+                            font-size: 16px;
+                            color: #707070;
+                            margin-bottom: 5px;
+                        }}
+                        .metric-value {{
+                            font-size: 32px;
+                            font-weight: bold;
+                            color: #1f77b4;
+                        }}
+                        .metric-caption {{
+                            font-size: 12px;
+                            color: #a0a0a0;
+                            margin-top: -10px;
+                        }}
+                    </style>
+                    <div class="stMetric-container">
+                        <div class="metric-label">初見訪問者率</div>
+                        <div class="metric-value">{first_time_rate}</div>
+                        <div class="metric-caption">（MK平均値：{mk_avg_rate:.1f}% / MK中央値：{mk_median_rate:.1f}%）</div>
+                    </div>
+                    """
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                    st.markdown("---")
+
 
                 # 初コメント率
                 with col2:
@@ -552,12 +386,15 @@ if st.session_state.run_analysis:
                     mk_avg_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).mean() * 100
                     mk_median_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).median() * 100
 
-                    st.metric(
-                        label="初コメント率",
-                        value=first_comment_rate,
-                        help="合計コメント人数に対する初コメント人数の割合です。新規リスナーの参加度合いを示します。"
-                    )
-                    st.caption(f"（MK平均値：{mk_avg_rate_comment:.1f}% / MK中央値：{mk_median_rate_comment:.1f}%）")
+                    metric_html = f"""
+                    <div class="stMetric-container">
+                        <div class="metric-label">初コメント率</div>
+                        <div class="metric-value">{first_comment_rate}</div>
+                        <div class="metric-caption">（MK平均値：{mk_avg_rate_comment:.1f}% / MK中央値：{mk_median_rate_comment:.1f}%）</div>
+                    </div>
+                    """
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                    st.markdown("---")
 
                 # 初ギフト率
                 with col3:
@@ -571,12 +408,15 @@ if st.session_state.run_analysis:
                     mk_avg_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).mean() * 100
                     mk_median_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).median() * 100
                     
-                    st.metric(
-                        label="初ギフト率",
-                        value=first_gift_rate,
-                        help="合計ギフト人数に対する初ギフト人数の割合です。新規ファンの課金状況を示します。"
-                    )
-                    st.caption(f"（MK平均値：{mk_avg_rate_gift:.1f}% / MK中央値：{mk_median_rate_gift:.1f}%）")
+                    metric_html = f"""
+                    <div class="stMetric-container">
+                        <div class="metric-label">初ギフト率</div>
+                        <div class="metric-value">{first_gift_rate}</div>
+                        <div class="metric-caption">（MK平均値：{mk_avg_rate_gift:.1f}% / MK中央値：{mk_median_rate_gift:.1f}%）</div>
+                    </div>
+                    """
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                    st.markdown("---")
 
                 # 短時間滞在者率
                 with col4:
@@ -590,13 +430,16 @@ if st.session_state.run_analysis:
                     mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['合計視聴数']).mean() * 100
                     mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['合計視聴数']).median() * 100
 
-                    st.metric(
-                        label="短時間滞在者率",
-                        value=short_stay_rate,
-                        help="合計視聴数に対する、短時間しか滞在しなかったユーザーの割合です。"
-                    )
-                    st.caption(f"（MK平均値：{mk_avg_rate_short_stay:.1f}% / MK中央値：{mk_median_rate_short_stay:.1f}%）")
-                    
+                    metric_html = f"""
+                    <div class="stMetric-container">
+                        <div class="metric-label">短時間滞在者率</div>
+                        <div class="metric-value">{short_stay_rate}</div>
+                        <div class="metric-caption">（MK平均値：{mk_avg_rate_short_stay:.1f}% / MK中央値：{mk_median_rate_short_stay:.1f}%）</div>
+                    </div>
+                    """
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                    st.markdown("---")
+
                 st.subheader("📝 全体サマリー")
                 total_support_points = int(df_display["獲得支援point"].sum())
                 if "フォロワー数" in df_display.columns and not df_display.empty:
