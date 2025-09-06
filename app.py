@@ -42,9 +42,8 @@ def load_and_preprocess_data(member_id):
         csv_data = io.StringIO(response.text)
         
         # CSVを読み込む
-        # encodingを'cp932'に設定することで、日本語の文字化けを防止
-        # ヘッダーとデータ行の列数が一致しない問題を解決するため、最後の列を削除
-        df = pd.read_csv(csv_data, encoding='cp932')
+        # BOM付きUTF-8に対応するため、encoding='utf_8_sig' を使用
+        df = pd.read_csv(csv_data, encoding='utf_8_sig')
         
         # 列名から前後の空白と引用符を削除
         df.columns = df.columns.str.strip().str.replace('"', '')
@@ -65,7 +64,7 @@ def load_and_preprocess_data(member_id):
         if "配信日時" in df.columns:
             df["配信日時"] = pd.to_datetime(df["配信日時"])
         else:
-            raise KeyError("'配信日時' 列が見つかりません。")
+            raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
 
         return df
 
