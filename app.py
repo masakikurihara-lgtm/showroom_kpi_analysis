@@ -157,12 +157,12 @@ if st.button("分析を実行"):
                 st.markdown(f"**合計コメント数:** {total_comments:,} 件")
 
                 # 時間帯別パフォーマンス分析をここに追加
-                st.subheader("📊 時間帯別パフォーマンス分析")
+                st.subheader("📊 時間帯別パフォーマンス分析 (平均値)")
                 st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。")
                 
                 df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
                 
-                time_of_day_kpis = df.groupby('時間帯').agg({
+                time_of_day_kpis_mean = df.groupby('時間帯').agg({
                     '獲得支援point': 'mean',
                     '合計視聴数': 'mean',
                     'コメント数': 'mean'
@@ -173,15 +173,15 @@ if st.button("分析を実行"):
                     "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
                     "夜ピーク (21-22時)", "夜後半 (22-24時)"
                 ]
-                time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
-                time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
+                time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
 
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
                     fig1 = go.Figure(go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['獲得支援point'],
+                        x=time_of_day_kpis_mean['時間帯'],
+                        y=time_of_day_kpis_mean['獲得支援point'],
                         marker_color='#1f77b4',
                         name='獲得支援point'
                     ))
@@ -197,8 +197,8 @@ if st.button("分析を実行"):
                 
                 with col2:
                     fig2 = go.Figure(go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['合計視聴数'],
+                        x=time_of_day_kpis_mean['時間帯'],
+                        y=time_of_day_kpis_mean['合計視聴数'],
                         marker_color='#ff7f0e',
                         name='合計視聴数'
                     ))
@@ -214,8 +214,8 @@ if st.button("分析を実行"):
 
                 with col3:
                     fig3 = go.Figure(go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['コメント数'],
+                        x=time_of_day_kpis_mean['時間帯'],
+                        y=time_of_day_kpis_mean['コメント数'],
                         marker_color='#2ca02c',
                         name='コメント数'
                     ))
@@ -228,6 +228,73 @@ if st.button("分析を実行"):
                         margin=dict(t=50, b=0, l=40, r=40)
                     )
                     st.plotly_chart(fig3, use_container_width=True)
+                
+                # 中央値のグラフをここに追加
+                st.subheader("📊 時間帯別パフォーマンス分析 (中央値)")
+                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**中央値**を示しています。突出した値の影響を受けにくく、一般的な傾向を把握するのに役立ちます。")
+                
+                time_of_day_kpis_median = df.groupby('時間帯').agg({
+                    '獲得支援point': 'median',
+                    '合計視聴数': 'median',
+                    'コメント数': 'median'
+                }).reset_index()
+
+                time_of_day_kpis_median['時間帯'] = pd.Categorical(time_of_day_kpis_median['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis_median = time_of_day_kpis_median.sort_values('時間帯')
+                
+                col4, col5, col6 = st.columns(3)
+                
+                with col4:
+                    fig4 = go.Figure(go.Bar(
+                        x=time_of_day_kpis_median['時間帯'],
+                        y=time_of_day_kpis_median['獲得支援point'],
+                        marker_color='#1f77b4',
+                        name='獲得支援point'
+                    ))
+                    fig4.update_layout(
+                        title_text="獲得支援point (中央値)",
+                        title_font_size=16,
+                        yaxis=dict(title="獲得支援point", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig4, use_container_width=True)
+                
+                with col5:
+                    fig5 = go.Figure(go.Bar(
+                        x=time_of_day_kpis_median['時間帯'],
+                        y=time_of_day_kpis_median['合計視聴数'],
+                        marker_color='#ff7f0e',
+                        name='合計視聴数'
+                    ))
+                    fig5.update_layout(
+                        title_text="合計視聴数 (中央値)",
+                        title_font_size=16,
+                        yaxis=dict(title="合計視聴数", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig5, use_container_width=True)
+
+                with col6:
+                    fig6 = go.Figure(go.Bar(
+                        x=time_of_day_kpis_median['時間帯'],
+                        y=time_of_day_kpis_median['コメント数'],
+                        marker_color='#2ca02c',
+                        name='コメント数'
+                    ))
+                    fig6.update_layout(
+                        title_text="コメント数 (中央値)",
+                        title_font_size=16,
+                        yaxis=dict(title="コメント数", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig6, use_container_width=True)
+
 
             else: # 個別アカウントIDの場合
                 st.subheader("📈 主要KPIの推移")
@@ -270,12 +337,12 @@ if st.button("分析を実行"):
                 )
                 st.plotly_chart(fig, use_container_width=True)
                 
-                st.subheader("📊 時間帯別パフォーマンス分析")
+                st.subheader("📊 時間帯別パフォーマンス分析 (平均値)")
                 st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。")
                 
                 df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
                 
-                time_of_day_kpis = df.groupby('時間帯').agg({
+                time_of_day_kpis_mean = df.groupby('時間帯').agg({
                     '獲得支援point': 'mean',
                     '合計視聴数': 'mean',
                     'コメント数': 'mean'
@@ -286,15 +353,15 @@ if st.button("分析を実行"):
                     "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
                     "夜ピーク (21-22時)", "夜後半 (22-24時)"
                 ]
-                time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
-                time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
+                time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
 
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
                     fig1 = go.Figure(go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['獲得支援point'],
+                        x=time_of_day_kpis_mean['時間帯'],
+                        y=time_of_day_kpis_mean['獲得支援point'],
                         marker_color='#1f77b4',
                         name='獲得支援point'
                     ))
@@ -310,8 +377,8 @@ if st.button("分析を実行"):
                 
                 with col2:
                     fig2 = go.Figure(go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['合計視聴数'],
+                        x=time_of_day_kpis_mean['時間帯'],
+                        y=time_of_day_kpis_mean['合計視聴数'],
                         marker_color='#ff7f0e',
                         name='合計視聴数'
                     ))
@@ -327,8 +394,8 @@ if st.button("分析を実行"):
 
                 with col3:
                     fig3 = go.Figure(go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['コメント数'],
+                        x=time_of_day_kpis_mean['時間帯'],
+                        y=time_of_day_kpis_mean['コメント数'],
                         marker_color='#2ca02c',
                         name='コメント数'
                     ))
@@ -341,7 +408,72 @@ if st.button("分析を実行"):
                         margin=dict(t=50, b=0, l=40, r=40)
                     )
                     st.plotly_chart(fig3, use_container_width=True)
+
+                st.subheader("📊 時間帯別パフォーマンス分析 (中央値)")
+                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**中央値**を示しています。突出した値の影響を受けにくく、一般的な傾向を把握するのに役立ちます。")
+
+                time_of_day_kpis_median = df.groupby('時間帯').agg({
+                    '獲得支援point': 'median',
+                    '合計視聴数': 'median',
+                    'コメント数': 'median'
+                }).reset_index()
+
+                time_of_day_kpis_median['時間帯'] = pd.Categorical(time_of_day_kpis_median['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis_median = time_of_day_kpis_median.sort_values('時間帯')
                 
+                col4, col5, col6 = st.columns(3)
+                
+                with col4:
+                    fig4 = go.Figure(go.Bar(
+                        x=time_of_day_kpis_median['時間帯'],
+                        y=time_of_day_kpis_median['獲得支援point'],
+                        marker_color='#1f77b4',
+                        name='獲得支援point'
+                    ))
+                    fig4.update_layout(
+                        title_text="獲得支援point (中央値)",
+                        title_font_size=16,
+                        yaxis=dict(title="獲得支援point", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig4, use_container_width=True)
+                
+                with col5:
+                    fig5 = go.Figure(go.Bar(
+                        x=time_of_day_kpis_median['時間帯'],
+                        y=time_of_day_kpis_median['合計視聴数'],
+                        marker_color='#ff7f0e',
+                        name='合計視聴数'
+                    ))
+                    fig5.update_layout(
+                        title_text="合計視聴数 (中央値)",
+                        title_font_size=16,
+                        yaxis=dict(title="合計視聴数", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig5, use_container_width=True)
+
+                with col6:
+                    fig6 = go.Figure(go.Bar(
+                        x=time_of_day_kpis_median['時間帯'],
+                        y=time_of_day_kpis_median['コメント数'],
+                        marker_color='#2ca02c',
+                        name='コメント数'
+                    ))
+                    fig6.update_layout(
+                        title_text="コメント数 (中央値)",
+                        title_font_size=16,
+                        yaxis=dict(title="コメント数", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig6, use_container_width=True)
+
                 st.subheader("📝 配信ごとの詳細データ")
                 df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
                 st.dataframe(df_display, hide_index=True)
