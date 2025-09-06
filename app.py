@@ -4,6 +4,7 @@ import numpy as np
 import io
 import requests
 from datetime import date, timedelta
+import plotly.express as px
 
 # ページ設定
 st.set_page_config(
@@ -140,8 +141,23 @@ if st.button("分析を実行"):
             
             # 分析と可視化
             st.subheader("📈 主要KPIの推移")
-            st.line_chart(df.set_index("配信日時")[["獲得支援point", "フォロワー増減数", "コメント数"]])
+            # Plotlyを使用してグラフを作成（時間表示に対応）
+            fig = px.line(
+                df,
+                x="配信日時",
+                y=["獲得支援point", "フォロワー増減数", "コメント数"],
+                labels={
+                    "value": "値",
+                    "variable": "KPI"
+                },
+                title="KPIの推移（配信時間別）"
+            )
+            st.plotly_chart(fig, use_container_width=True)
             
+            # 詳細データテーブルの表示
+            st.subheader("📝 配信ごとの詳細データ")
+            st.dataframe(df)
+
             st.subheader("🎯 初見/リピーター分析")
             col1, col2, col3 = st.columns(3)
             
