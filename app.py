@@ -541,7 +541,7 @@ if st.session_state.run_analysis:
                         .metric-label {{
                             font-size: 16px;
                             color: #707070;
-                            margin-bottom: 5px;
+                            margin-bottom: -5px;
                         }}
                         .metric-value {{
                             font-size: 32px;
@@ -551,12 +551,12 @@ if st.session_state.run_analysis:
                         .metric-caption {{
                             font-size: 12px;
                             color: #a0a0a0;
-                            margin-top: -10px;
+                            margin-top: -5px;
                         }}
                         .metric-help {{
                             font-size: 12px;
                             color: #808080;
-                            margin-top: 5px;
+                            margin-top: 10px;
                             line-height: 1.5;
                         }}
                     </style>
