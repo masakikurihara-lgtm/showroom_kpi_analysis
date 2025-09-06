@@ -131,17 +131,25 @@ def load_and_preprocess_data(account_id, start_date, end_date):
 
     return filtered_df
 
-# 時間帯を分類する関数
+# 時間帯を分類する関数（新しい分類）
 def categorize_time_of_day(hour):
-    if 4 <= hour < 10:
-        return "早朝・午前"
-    elif 10 <= hour < 14:
+    if 3 <= hour < 6:
+        return "早朝"
+    elif 6 <= hour < 9:
+        return "朝"
+    elif 9 <= hour < 12:
+        return "午前"
+    elif 12 <= hour < 15:
         return "昼"
-    elif 14 <= hour < 18:
+    elif 15 <= hour < 18:
         return "午後"
-    elif 18 <= hour < 22:
+    elif 18 <= hour < 21:
         return "夜"
-    else:
+    elif 21 <= hour < 22:
+        return "イベント直前"
+    elif 22 <= hour < 24:
+        return "夜後半"
+    else: # 0 <= hour < 3
         return "深夜"
 
 # 分析実行ボタン
@@ -214,32 +222,65 @@ if st.button("分析を実行"):
                 # --- 追加機能: 時間帯別分析 ---
                 st.subheader("📊 時間帯別パフォーマンス分析")
                 
-                # 時間帯のカテゴリ列を追加
-                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day)
+                df_sorted_asc['時間帯'] = df_sorted_asc['配信日時'].dt.hour.apply(categorize_time_of_day)
                 
                 # 時間帯ごとに平均値を集計
-                time_of_day_kpis = df.groupby('時間帯').agg({
+                time_of_day_kpis = df_sorted_asc.groupby('時間帯').agg({
                     '獲得支援point': 'mean',
                     '合計視聴数': 'mean',
                     'コメント数': 'mean'
                 }).reset_index()
 
-                # グラフの作成
-                time_of_day_kpis = time_of_day_kpis.sort_values('時間帯', ascending=True, key=lambda x: x.map({
-                    "早朝・午前": 0, "昼": 1, "午後": 2, "夜": 3, "深夜": 4
-                }))
-
-                fig_time_of_day = px.bar(
-                    time_of_day_kpis,
-                    x="時間帯",
-                    y=["獲得支援point", "合計視聴数", "コメント数"],
+                # グラフの作成 (二重Y軸)
+                time_of_day_order = ["深夜", "早朝", "朝", "午前", "昼", "午後", "夜", "イベント直前", "夜後半"]
+                time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
+                
+                fig_time_of_day = go.Figure()
+                
+                # 左Y軸 (獲得支援point)
+                fig_time_of_day.add_trace(go.Bar(
+                    x=time_of_day_kpis['時間帯'],
+                    y=time_of_day_kpis['獲得支援point'],
+                    name='獲得支援point',
+                    marker_color='#1f77b4'
+                ))
+                
+                # 右Y軸 (合計視聴数、コメント数)
+                fig_time_of_day.add_trace(go.Bar(
+                    x=time_of_day_kpis['時間帯'],
+                    y=time_of_day_kpis['合計視聴数'],
+                    name='合計視聴数',
+                    marker_color='#ff7f0e',
+                    yaxis='y2'
+                ))
+                fig_time_of_day.add_trace(go.Bar(
+                    x=time_of_day_kpis['時間帯'],
+                    y=time_of_day_kpis['コメント数'],
+                    name='コメント数',
+                    marker_color='#2ca02c',
+                    yaxis='y2'
+                ))
+                
+                fig_time_of_day.update_layout(
                     title="時間帯別KPI平均値",
-                    labels={
-                        "value": "平均値",
-                        "variable": "KPI"
-                    },
-                    barmode='group'
+                    xaxis_title="時間帯",
+                    barmode='group',
+                    yaxis=dict(
+                        title='獲得支援point',
+                        titlefont=dict(color='#1f77b4'),
+                        tickfont=dict(color='#1f77b4')
+                    ),
+                    yaxis2=dict(
+                        title='合計視聴数・コメント数',
+                        titlefont=dict(color='#ff7f0e'),
+                        tickfont=dict(color='#ff7f0e'),
+                        overlaying='y',
+                        side='right'
+                    ),
+                    legend=dict(x=0, y=1.1, orientation="h")
                 )
+                
                 st.plotly_chart(fig_time_of_day, use_container_width=True)
 
                 st.subheader("📝 配信ごとの詳細データ")
