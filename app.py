@@ -33,9 +33,13 @@ today = datetime.now(JST).date()
 
 # 日付範囲の選択ウィジェット
 st.subheader("🗓️ 分析期間を選択")
-# today変数は、上記で修正したものをそのまま使用
-default_start_date = today - timedelta(days=30)
-default_end_date = today
+today = date.today()
+
+# デフォルトの終了日を今日から1日前に設定
+default_end_date = today - timedelta(days=1)
+# デフォルトの開始日を終了日から30日前に設定
+default_start_date = default_end_date - timedelta(days=30)
+
 selected_date_range = st.date_input(
     "日付範囲",
     (default_start_date, default_end_date),
