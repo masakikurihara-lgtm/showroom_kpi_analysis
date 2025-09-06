@@ -235,7 +235,7 @@ if st.button("分析を実行"):
                         yaxis=dict(title="獲得支援point", title_font_size=14),
                         font=dict(size=12),
                         height=400,
-                        margin=dict(t=50, b=100, l=40, r=40)
+                        margin=dict(t=50, b=40, l=40, r=40)
                     )
                     st.plotly_chart(fig1, use_container_width=True)
                 
@@ -252,7 +252,7 @@ if st.button("分析を実行"):
                         yaxis=dict(title="合計視聴数", title_font_size=14),
                         font=dict(size=12),
                         height=400,
-                        margin=dict(t=50, b=100, l=40, r=40)
+                        margin=dict(t=50, b=40, l=40, r=40)
                     )
                     st.plotly_chart(fig2, use_container_width=True)
 
@@ -269,7 +269,7 @@ if st.button("分析を実行"):
                         yaxis=dict(title="コメント数", title_font_size=14),
                         font=dict(size=12),
                         height=400,
-                        margin=dict(t=50, b=100, l=40, r=40)
+                        margin=dict(t=50, b=40, l=40, r=40)
                     )
                     st.plotly_chart(fig3, use_container_width=True)
                 
