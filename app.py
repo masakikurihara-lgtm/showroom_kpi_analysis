@@ -535,9 +535,10 @@ if st.session_state.run_analysis:
                     mk_caption = f"（MK平均値：{mk_avg_rate:.1f}% / MK中央値：{mk_median_rate:.1f}%）"
                     
                     st.metric(
-                        label=f"初見訪問者率\n<small>{mk_caption}</small>",
+                        label=f"初見訪問者率<br><small>{mk_caption}</small>",
                         value=first_time_rate,
-                        help="合計視聴会員数に対する初ルーム来訪者数の割合です。新規ファン獲得の効率を示します。"
+                        help="合計視聴会員数に対する初ルーム来訪者数の割合です。新規ファン獲得の効率を示します。",
+                        unsafe_allow_html=True
                     )
 
                 # 初コメント率
@@ -554,9 +555,10 @@ if st.session_state.run_analysis:
                     mk_caption_comment = f"（MK平均値：{mk_avg_rate_comment:.1f}% / MK中央値：{mk_median_rate_comment:.1f}%）"
 
                     st.metric(
-                        label=f"初コメント率\n<small>{mk_caption_comment}</small>",
+                        label=f"初コメント率<br><small>{mk_caption_comment}</small>",
                         value=first_comment_rate,
-                        help="合計コメント人数に対する初コメント人数の割合です。新規リスナーの参加度合いを示します。"
+                        help="合計コメント人数に対する初コメント人数の割合です。新規リスナーの参加度合いを示します。",
+                        unsafe_allow_html=True
                     )
 
                 # 初ギフト率
@@ -573,9 +575,10 @@ if st.session_state.run_analysis:
                     mk_caption_gift = f"（MK平均値：{mk_avg_rate_gift:.1f}% / MK中央値：{mk_median_rate_gift:.1f}%）"
                     
                     st.metric(
-                        label=f"初ギフト率\n<small>{mk_caption_gift}</small>",
+                        label=f"初ギフト率<br><small>{mk_caption_gift}</small>",
                         value=first_gift_rate,
-                        help="合計ギフト人数に対する初ギフト人数の割合です。新規ファンの課金状況を示します。"
+                        help="合計ギフト人数に対する初ギフト人数の割合です。新規ファンの課金状況を示します。",
+                        unsafe_allow_html=True
                     )
 
                 # 短時間滞在者率
@@ -592,9 +595,10 @@ if st.session_state.run_analysis:
                     mk_caption_short_stay = f"（MK平均値：{mk_avg_rate_short_stay:.1f}% / MK中央値：{mk_median_rate_short_stay:.1f}%）"
 
                     st.metric(
-                        label=f"短時間滞在者率\n<small>{mk_caption_short_stay}</small>",
+                        label=f"短時間滞在者率<br><small>{mk_caption_short_stay}</small>",
                         value=short_stay_rate,
-                        help="合計視聴数に対する、短時間しか滞在しなかったユーザーの割合です。"
+                        help="合計視聴数に対する、短時間しか滞在しなかったユーザーの割合です。",
+                        unsafe_allow_html=True
                     )
 
                 st.subheader("📝 全体サマリー")
