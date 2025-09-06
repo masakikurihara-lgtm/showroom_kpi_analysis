@@ -116,7 +116,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         if col in filtered_df.columns:
             filtered_df[col] = filtered_df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
     
-    # ルームIDを取得
     if "ルームID" in filtered_df.columns and not filtered_df.empty:
         room_id = filtered_df["ルームID"].iloc[0]
     else:
@@ -516,19 +515,21 @@ if st.button("分析を実行"):
                 st.subheader("🎯 初見/リピーター分析")
                 col1, col2, col3 = st.columns(3)
                 
-                total_visitors = df_sorted_asc["視聴会員数"].sum()
+                total_visitors = df_sorted_asc["合計視聴数"].sum() # 変更: 合計視聴数
                 first_time_visitors = df_sorted_asc["初ルーム来訪者数"].sum()
                 
                 with col1:
                     st.metric(
                         label="初見訪問者率",
                         value=f"{first_time_visitors / total_visitors * 100:.1f}%" if total_visitors > 0 else "0%",
-                        help="合計視聴会員数に対する初ルーム来訪者数の割合です。新規ファン獲得の効率を示します。"
+                        help="合計視聴数に対する初ルーム来訪者数の割合です。新規ファン獲得の効率を示します。" # 変更: 吹き出し文言
                     )
                     
                 with col2:
-                    total_commenters = df_sorted_asc["コメント人数"].sum()
-                    first_time_commenters = df_sorted_asc["初コメント人数"].sum()
+                    # 初コメント人数がNaNでない行のみを抽出
+                    comment_df = df_sorted_asc.dropna(subset=['初コメント人数'])
+                    total_commenters = comment_df["コメント人数"].sum()
+                    first_time_commenters = comment_df["初コメント人数"].sum()
                     st.metric(
                         label="初コメント率",
                         value=f"{first_time_commenters / total_commenters * 100:.1f}%" if total_commenters > 0 else "0%",
@@ -536,8 +537,10 @@ if st.button("分析を実行"):
                     )
 
                 with col3:
-                    total_gifters = df_sorted_asc["ギフト人数"].sum()
-                    first_time_gifters = df_sorted_asc["初ギフト人数"].sum()
+                    # 初ギフト人数がNaNでない行のみを抽出
+                    gift_df = df_sorted_asc.dropna(subset=['初ギフト人数'])
+                    total_gifters = gift_df["ギフト人数"].sum()
+                    first_time_gifters = gift_df["初ギフト人数"].sum()
                     st.metric(
                         label="初ギフト率",
                         value=f"{first_time_gifters / total_gifters * 100:.1f}%" if total_gifters > 0 else "0%",
