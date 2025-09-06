@@ -146,15 +146,19 @@ def categorize_time_of_day_with_range(hour):
 def get_event_data_from_api(room_id):
     """
     指定されたルームIDのイベント情報を取得する（非公式APIの例）
+    デバッグ情報を追加
     """
     url = f"https://www.showroom-live.com/api/room/event_list?room_id={room_id}"
+    st.info(f"APIへのリクエスト: {url}") # デバッグ情報
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status() # HTTPエラーをチェック
         events = response.json().get("event_list", [])
+        st.success("APIからイベント情報を正常に取得しました。") # 成功メッセージ
         return events
     except requests.exceptions.RequestException as e:
-        print(f"APIからのイベント情報取得に失敗しました: {e}")
+        st.error(f"APIからのイベント情報取得に失敗しました。詳細: {e}") # 失敗メッセージ
+        st.error(f"ステータスコード: {response.status_code if 'response' in locals() else 'N/A'}")
         return []
 
 def add_event_info_to_df(df, room_id):
@@ -162,12 +166,14 @@ def add_event_info_to_df(df, room_id):
     DataFrameにイベント情報を追加する
     """
     if room_id is None:
+        st.warning("ルームIDが取得できませんでした。イベント情報は追加されません。")
         df['参加イベント'] = '情報なし'
         return df
 
     # イベント情報の取得
     events = get_event_data_from_api(room_id)
     if not events:
+        st.warning(f"ルームID {room_id} のイベント情報が見つかりませんでした。APIがデータを返していないか、データ形式が変更された可能性があります。")
         df['参加イベント'] = '情報なし'
         return df
 
