@@ -164,43 +164,61 @@ if st.button("分析を実行"):
                 st.subheader("📈 主要KPIの推移")
                 df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
                 
-                fig = go.Figure()
-
-                fig.add_trace(go.Scatter(
-                    x=df_sorted_asc["配信日時"],
-                    y=df_sorted_asc["獲得支援point"],
-                    name="獲得支援point",
-                    mode='lines+markers',
-                    marker=dict(symbol='circle')
-                ))
-
-                fig.add_trace(go.Scatter(
-                    x=df_sorted_asc["配信日時"],
-                    y=df_sorted_asc["配信時間(分)"],
-                    name="配信時間(分)",
-                    mode='lines+markers',
-                    yaxis="y2",
-                    marker=dict(symbol='square')
-                ))
-                fig.add_trace(go.Scatter(
-                    x=df_sorted_asc["配信日時"],
-                    y=df_sorted_asc["合計視聴数"],
-                    name="合計視聴数",
-                    mode='lines+markers',
-                    yaxis="y2",
-                    marker=dict(symbol='star')
-                ))
-
-                fig.update_layout(
-                    title="KPIの推移（配信時間別）",
-                    xaxis=dict(title="配信日時"),
-                    yaxis=dict(title="獲得支援point", side="left", showgrid=False),
-                    yaxis2=dict(title="配信時間・視聴数", overlaying="y", side="right"),
-                    legend=dict(x=0, y=1.1, orientation="h"),
-                    hovermode="x unified"
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                # ここから変更
+                col1, col2, col3 = st.columns(3)
                 
+                with col1:
+                    fig_point = go.Figure(go.Scatter(
+                        x=df_sorted_asc["配信日時"],
+                        y=df_sorted_asc["獲得支援point"],
+                        name="獲得支援point",
+                        mode='lines+markers',
+                        marker=dict(symbol='circle')
+                    ))
+                    fig_point.update_layout(
+                        title="獲得支援point",
+                        xaxis=dict(title="配信日時"),
+                        yaxis=dict(title="獲得支援point"),
+                        height=400,
+                        margin=dict(l=40, r=40, b=40, t=50),
+                    )
+                    st.plotly_chart(fig_point, use_container_width=True)
+                
+                with col2:
+                    fig_time = go.Figure(go.Scatter(
+                        x=df_sorted_asc["配信日時"],
+                        y=df_sorted_asc["配信時間(分)"],
+                        name="配信時間(分)",
+                        mode='lines+markers',
+                        marker=dict(symbol='square')
+                    ))
+                    fig_time.update_layout(
+                        title="配信時間(分)",
+                        xaxis=dict(title="配信日時"),
+                        yaxis=dict(title="配信時間(分)"),
+                        height=400,
+                        margin=dict(l=40, r=40, b=40, t=50),
+                    )
+                    st.plotly_chart(fig_time, use_container_width=True)
+
+                with col3:
+                    fig_viewers = go.Figure(go.Scatter(
+                        x=df_sorted_asc["配信日時"],
+                        y=df_sorted_asc["合計視聴数"],
+                        name="合計視聴数",
+                        mode='lines+markers',
+                        marker=dict(symbol='star')
+                    ))
+                    fig_viewers.update_layout(
+                        title="合計視聴数",
+                        xaxis=dict(title="配信日時"),
+                        yaxis=dict(title="合計視聴数"),
+                        height=400,
+                        margin=dict(l=40, r=40, b=40, t=50),
+                    )
+                    st.plotly_chart(fig_viewers, use_container_width=True)
+                # ここまで変更
+
                 st.subheader("📊 時間帯別パフォーマンス分析")
                 
                 df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
@@ -272,9 +290,6 @@ if st.button("分析を実行"):
                         margin=dict(t=50, b=0, l=40, r=40)
                     )
                     st.plotly_chart(fig3, use_container_width=True)
-                
-                # 以下の行が余白の原因です。この行を削除します。
-                # st.markdown("<br><br>", unsafe_allow_html=True)
                 
                 st.subheader("📝 配信ごとの詳細データ")
                 df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
