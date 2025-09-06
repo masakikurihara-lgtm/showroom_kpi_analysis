@@ -34,38 +34,33 @@ def load_and_preprocess_data(member_id):
     url = f"https://mksoul-pro.com/showroom/csv/2025-08_all_{member_id}.csv"
     
     try:
-        # requestsを使ってURLからCSVデータをバイナリで取得
+        # requestsを使ってURLからCSVデータを取得
         response = requests.get(url)
         response.raise_for_status()  # HTTPエラーをチェック
         
-        # バイナリデータをShift-JISでデコードし、文字列として読み込む
-        csv_text = response.content.decode('shift_jis')
-        csv_data = io.StringIO(csv_text)
+        # バイナリデータをStringIOで読み込める形に変換
+        csv_data = io.StringIO(response.text)
         
-        # pandasでCSVを読み込む
-        df = pd.read_csv(csv_data)
+        # 必要な列を明示的に指定してCSVを読み込む
+        # 余分な列を無視するため、usecolsを使用
+        required_cols = [
+            "アカウントID", "ルームID", "配信日時", "配信時間(分)", "連続配信日数",
+            "ルーム名", "合計視聴数", "視聴会員数", "アクション会員数",
+            "SPギフト使用会員率", "初ルーム来訪者数", "初SR来訪者数",
+            "短時間滞在者数", "ルームレベル", "フォロワー数", "フォロワー増減数",
+            "Post人数", "獲得支援point", "コメント数", "コメント人数",
+            "初コメント人数", "ギフト数", "ギフト人数", "初ギフト人数",
+            "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数",
+            "期限あり/期限なしSG総額", "2023年9月以前のおまけ分(無償SG RS外)"
+        ]
         
-        # 列名から不要な引用符を削除
-        df.columns = df.columns.str.replace('"', '')
-
-        # 列名から不要な列を削除
-        df = df.drop(columns=[
-            "アカウントID",
-            "ルームID",
-            "連続配信日数",
-            "ルーム名",
-            "2023年9月以前のおまけ分(無償SG RS外)"
-        ], errors='ignore')
+        df = pd.read_csv(csv_data, encoding='utf-8', usecols=required_cols)
         
         # データ型変換とクリーンアップ
         for col in [
-            "合計視聴数",
-            "視聴会員数",
-            "フォロワー数",
-            "獲得支援point",
-            "コメント数",
-            "ギフト数",
-            "期限あり/期限なしSG総額",
+            "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
+            "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
+            "ギフト人数", "初ギフト人数"
         ]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
@@ -77,6 +72,9 @@ def load_and_preprocess_data(member_id):
 
     except requests.exceptions.RequestException as e:
         st.error(f"データの読み込み中にエラーが発生しました。メンバーIDが正しいか、URLにアクセスできるか確認してください。エラー: {e}")
+        return None
+    except ValueError as e:
+        st.error(f"CSVファイルの形式に問題があります。余分な列や欠損値がないか確認してください。詳細: {e}")
         return None
 
 # 分析実行ボタン
@@ -127,9 +125,10 @@ if st.button("分析を実行"):
         st.subheader("📝 全体サマリー")
         total_support_points = int(df["獲得支援point"].sum())
         total_followers = int(df["フォロワー数"].iloc[-1]) # 最新のフォロワー数
-        total_point_increase = int(df["獲得支援point"].diff().sum()) # 合計増加ポイント
+        total_point_increase = int(df["フォロワー増減数"].sum()) # フォロワー増減の合計
         
         st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
+        st.markdown(f"**フォロワー純増数:** {total_point_increase:,} 人")
         st.markdown(f"**最終フォロワー数:** {total_followers:,} 人")
         
         # 戦略的な示唆
