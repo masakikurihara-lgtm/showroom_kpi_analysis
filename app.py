@@ -116,25 +116,25 @@ def load_and_preprocess_data(account_id, start_date, end_date):
 
     return filtered_df
 
-def categorize_time_of_day(hour):
+def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6:
-        return "早朝"
+        return "早朝 (3-6時)"
     elif 6 <= hour < 9:
-        return "朝"
+        return "朝 (6-9時)"
     elif 9 <= hour < 12:
-        return "午前"
+        return "午前 (9-12時)"
     elif 12 <= hour < 15:
-        return "昼"
+        return "昼 (12-15時)"
     elif 15 <= hour < 18:
-        return "午後"
+        return "午後 (15-18時)"
     elif 18 <= hour < 21:
-        return "夜前半"
+        return "夜前半 (18-21時)"
     elif 21 <= hour < 22:
-        return "夜ピーク"
+        return "夜ピーク (21-22時)"
     elif 22 <= hour < 24:
-        return "夜後半"
+        return "夜後半 (22-24時)"
     else:
-        return "深夜"
+        return "深夜 (0-3時)"
 
 if st.button("分析を実行"):
     if len(selected_date_range) == 2:
@@ -203,7 +203,8 @@ if st.button("分析を実行"):
                 
                 st.subheader("📊 時間帯別パフォーマンス分析")
                 
-                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day)
+                # 新しい関数を使用して時間帯と時間範囲を同時に表示
+                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
                 
                 time_of_day_kpis = df.groupby('時間帯').agg({
                     '獲得支援point': 'mean',
@@ -211,13 +212,16 @@ if st.button("分析を実行"):
                     'コメント数': 'mean'
                 }).reset_index()
 
-                time_of_day_order = ["深夜", "早朝", "朝", "午前", "昼", "午後", "夜前半", "夜ピーク", "夜後半"]
+                time_of_day_order = [
+                    "深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", 
+                    "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
+                    "夜ピーク (21-22時)", "夜後半 (22-24時)"
+                ]
                 time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
 
                 fig_time_of_day = make_subplots(
                     rows=1, cols=3, 
-                    # subplot_titlesを削除しました
                 )
                 
                 fig_time_of_day.add_trace(
@@ -252,7 +256,6 @@ if st.button("分析を実行"):
                 
                 fig_time_of_day.update_layout(
                     title_text="時間帯別KPI平均値",
-                    # 凡例をグラフの下部中央に配置しました
                     legend=dict(
                         orientation="h",
                         yanchor="top",
@@ -260,13 +263,11 @@ if st.button("分析を実行"):
                         xanchor="center",
                         x=0.5
                     ),
-                    # 重なりを防ぐため、グラフの余白を調整
                     margin=dict(t=50, b=100)
                 )
                 
                 st.plotly_chart(fig_time_of_day, use_container_width=True)
                 
-                # アイコン説明との間隔を空けるための空行を追加
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 
                 st.subheader("📝 配信ごとの詳細データ")
