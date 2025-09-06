@@ -41,21 +41,15 @@ def load_and_preprocess_data(member_id):
         # バイナリデータをStringIOで読み込める形に変換
         csv_data = io.StringIO(response.text)
         
-        # 必要な列を明示的に指定してCSVを読み込む
-        # 余分な列を無視するため、usecolsを使用
-        required_cols = [
-            "アカウントID", "ルームID", "配信日時", "配信時間(分)", "連続配信日数",
-            "ルーム名", "合計視聴数", "視聴会員数", "アクション会員数",
-            "SPギフト使用会員率", "初ルーム来訪者数", "初SR来訪者数",
-            "短時間滞在者数", "ルームレベル", "フォロワー数", "フォロワー増減数",
-            "Post人数", "獲得支援point", "コメント数", "コメント人数",
-            "初コメント人数", "ギフト数", "ギフト人数", "初ギフト人数",
-            "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数",
-            "期限あり/期限なしSG総額", "2023年9月以前のおまけ分(無償SG RS外)"
-        ]
+        # CSVを読み込む
+        df = pd.read_csv(csv_data)
+
+        # 列名から前後の空白を削除
+        df.columns = df.columns.str.strip()
         
-        df = pd.read_csv(csv_data, encoding='utf-8', usecols=required_cols)
-        
+        # CSVの最終列が余分なデータなので削除
+        df = df.iloc[:, :-1]
+
         # データ型変換とクリーンアップ
         for col in [
             "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
@@ -73,8 +67,8 @@ def load_and_preprocess_data(member_id):
     except requests.exceptions.RequestException as e:
         st.error(f"データの読み込み中にエラーが発生しました。メンバーIDが正しいか、URLにアクセスできるか確認してください。エラー: {e}")
         return None
-    except ValueError as e:
-        st.error(f"CSVファイルの形式に問題があります。余分な列や欠損値がないか確認してください。詳細: {e}")
+    except Exception as e:
+        st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
         return None
 
 # 分析実行ボタン
