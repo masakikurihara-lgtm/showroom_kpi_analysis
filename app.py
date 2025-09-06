@@ -521,6 +521,7 @@ if st.session_state.run_analysis:
                 
                 col1, col2, col3, col4 = st.columns(4)
                 
+                # 初見訪問者率
                 with col1:
                     first_time_df = df_display.dropna(subset=['初ルーム来訪者数'])
                     total_members_for_first_time = first_time_df["視聴会員数"].sum()
@@ -531,12 +532,13 @@ if st.session_state.run_analysis:
                         value=first_time_rate,
                         help="合計視聴会員数に対する初ルーム来訪者数の割合です。新規ファン獲得の効率を示します。"
                     )
-                    # 初見訪問者率のMK平均値と中央値
+                    # MK平均値と中央値
                     mk_first_time_df = df.dropna(subset=['初ルーム来訪者数'])
                     mk_avg_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['視聴会員数']).mean() * 100
                     mk_median_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['視聴会員数']).median() * 100
                     st.caption(f"（MK平均値：{mk_avg_rate:.1f}% / MK中央値：{mk_median_rate:.1f}%）")
 
+                # 初コメント率
                 with col2:
                     comment_df = df_display.dropna(subset=['初コメント人数'])
                     total_commenters = comment_df["コメント人数"].sum()
@@ -547,12 +549,13 @@ if st.session_state.run_analysis:
                         value=first_comment_rate,
                         help="合計コメント人数に対する初コメント人数の割合です。新規リスナーの参加度合いを示します。"
                     )
-                    # 初コメント率のMK平均値と中央値
+                    # MK平均値と中央値
                     mk_comment_df = df.dropna(subset=['初コメント人数'])
                     mk_avg_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).mean() * 100
                     mk_median_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).median() * 100
                     st.caption(f"（MK平均値：{mk_avg_rate_comment:.1f}% / MK中央値：{mk_median_rate_comment:.1f}%）")
 
+                # 初ギフト率
                 with col3:
                     gift_df = df_display.dropna(subset=['初ギフト人数'])
                     total_gifters = gift_df["ギフト人数"].sum()
@@ -563,12 +566,13 @@ if st.session_state.run_analysis:
                         value=first_gift_rate,
                         help="合計ギフト人数に対する初ギフト人数の割合です。新規ファンの課金状況を示します。"
                     )
-                    # 初ギフト率のMK平均値と中央値
+                    # MK平均値と中央値
                     mk_gift_df = df.dropna(subset=['初ギフト人数'])
                     mk_avg_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).mean() * 100
                     mk_median_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).median() * 100
                     st.caption(f"（MK平均値：{mk_avg_rate_gift:.1f}% / MK中央値：{mk_median_rate_gift:.1f}%）")
 
+                # 短時間滞在者率
                 with col4:
                     short_stay_df = df_display.dropna(subset=['短時間滞在者数'])
                     total_viewers_for_short_stay = short_stay_df["合計視聴数"].sum()
@@ -579,7 +583,7 @@ if st.session_state.run_analysis:
                         value=short_stay_rate,
                         help="合計視聴数に対する、短時間しか滞在しなかったユーザーの割合です。"
                     )
-                    # 短時間滞在者率のMK平均値と中央値
+                    # MK平均値と中央値
                     mk_short_stay_df = df.dropna(subset=['短時間滞在者数'])
                     mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['合計視聴数']).mean() * 100
                     mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['合計視聴数']).median() * 100
