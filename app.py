@@ -15,28 +15,23 @@ st.set_page_config(
 st.title("SHOWROOMライバーKPI分析ツール")
 st.markdown("ライブ配信データから、フォロワーやポイント獲得の傾向を分析し、今後の戦略を検討しましょう。")
 
-# アカウントIDとルームIDの入力フィールドを追加
+# 入力フィールドをアカウントIDのみに変更
 account_id = st.text_input(
     "分析したいライバーの**アカウントID**を入力してください",
     "natsume" # 例としてデフォルト値を設定
 )
-room_id = st.text_input(
-    "分析したいライバーの**ルームID**を入力してください",
-    "343547" # 例としてデフォルト値を設定
-)
 
 # データの読み込みと前処理関数
-def load_and_preprocess_data(account_id, room_id):
+def load_and_preprocess_data(account_id):
     """
-    指定されたアカウントIDとルームIDのCSVをURLから読み込み、前処理を行う
+    全員分のCSVをURLから読み込み、指定されたアカウントIDのデータのみを抽出して前処理を行う
     """
-    if not account_id or not room_id:
-        st.error("アカウントIDとルームIDの両方を入力してください。")
+    if not account_id:
+        st.error("アカウントIDを入力してください。")
         return None
 
-    # URLを生成（アカウントIDとルームIDを組み合わせてメンバーIDを構築）
-    member_id = f"{room_id}_{account_id}"
-    url = f"https://mksoul-pro.com/showroom/csv/2025-08_all_{member_id}.csv"
+    # URLを全員分データに固定
+    url = "https://mksoul-pro.com/showroom/csv/2025-08_all_all.csv"
     
     try:
         # requestsを使ってURLからCSVデータを取得
@@ -68,25 +63,32 @@ def load_and_preprocess_data(account_id, room_id):
         # 列名から前後の空白と引用符を削除
         df.columns = df.columns.str.strip().str.replace('"', '')
 
+        # ユーザーが入力したアカウントIDでデータをフィルタリング
+        filtered_df = df[df["アカウントID"] == account_id].copy()
+        
+        if filtered_df.empty:
+            st.warning(f"指定されたアカウントID（{account_id}）のデータが見つかりませんでした。")
+            return None
+
         # データ型変換とクリーンアップ
         for col in [
             "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
             "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
             "ギフト人数", "初ギフト人数", "フォロワー増減数"
         ]:
-            if col in df.columns:
-                df[col] = df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
+            if col in filtered_df.columns:
+                filtered_df[col] = filtered_df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
         
         # "配信日時"列をdatetime型に変換
-        if "配信日時" in df.columns:
-            df["配信日時"] = pd.to_datetime(df["配信日時"])
+        if "配信日時" in filtered_df.columns:
+            filtered_df["配信日時"] = pd.to_datetime(filtered_df["配信日時"])
         else:
             raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
 
-        return df
+        return filtered_df
 
     except requests.exceptions.RequestException as e:
-        st.error(f"データの読み込み中にエラーが発生しました。アカウントIDとルームIDの組み合わせが正しいか、URLにアクセスできるか確認してください。エラー: {e}")
+        st.error(f"データの読み込み中にエラーが発生しました。URLにアクセスできるか確認してください。エラー: {e}")
         return None
     except Exception as e:
         st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
@@ -94,7 +96,7 @@ def load_and_preprocess_data(account_id, room_id):
 
 # 分析実行ボタン
 if st.button("分析を実行"):
-    df = load_and_preprocess_data(account_id, room_id)
+    df = load_and_preprocess_data(account_id)
     if df is not None and not df.empty:
         st.success("データの読み込みと前処理が完了しました！")
         
@@ -162,4 +164,4 @@ if st.button("分析を実行"):
             st.markdown("👉 視聴会員数に対するコメント人数が少ないです。リスナーがコメントしやすいような質問を投げかけたり、イベントを活用してコメントを促す工夫を検討しましょう。")
 
     elif df is not None and df.empty:
-        st.warning("指定されたアカウントIDとルームIDの組み合わせのデータが見つかりませんでした。")
+        st.warning(f"指定されたアカウントID（{account_id}）のデータが見つかりませんでした。")
