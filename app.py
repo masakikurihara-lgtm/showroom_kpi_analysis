@@ -144,43 +144,9 @@ def categorize_time_of_day_with_range(hour):
     else:
         return "深夜 (0-3時)"
 
-def get_event_list_from_api(page=1, status=4):
-    """
-    指定されたステータスのイベントリストを取得する
-    status: 1:開催中, 3:開催予定, 4:終了済み
-    """
-    url = f"https://www.showroom-live.com/api/event/search?page={page}&status={status}"
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        events = response.json().get("event_list", [])
-        return events
-    except requests.exceptions.RequestException as e:
-        st.error(f"イベントリストの取得に失敗しました: {e}")
-        return []
-
-def check_event_participation(event_id, room_id):
-    """
-    指定されたルームIDが特定のイベントに参加しているか確認する
-    """
-    url = f"https://www.showroom-live.com/api/events/{event_id}/ranking"
-    params = {"room_id": room_id}
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        ranking_data = response.json().get("ranking_list", [])
-        # ranking_listにroom_idが存在するかで判断
-        for entry in ranking_data:
-            if entry.get("room_id") == int(room_id):
-                return True
-        return False
-    except requests.exceptions.RequestException as e:
-        st.error(f"イベント {event_id} のランキング情報取得に失敗しました: {e}")
-        return False
-
 def add_event_info_to_df(df, room_id):
     """
-    DataFrameにイベント情報を追加する（新しいロジック）
+    DataFrameにイベント情報を追加する（新しいAPIを使用）
     """
     if room_id is None:
         st.warning("ルームIDが取得できませんでした。イベント情報は追加されません。")
@@ -189,55 +155,54 @@ def add_event_info_to_df(df, room_id):
 
     st.info("APIからイベント情報を取得中です。この処理には時間がかかる場合があります。")
     
-    # 終了済みイベントリストを取得
-    events_list = get_event_list_from_api(status=4)
-    if not events_list:
-        st.warning("終了済みイベントのリストが見つかりませんでした。")
+    url = f"https://www.showroom-live.com/api/room/event_and_support?room_id={room_id}"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        events_in_progress = data.get("current_event_list", [])
+        
+        participated_events = []
+        if events_in_progress:
+            for event in events_in_progress:
+                event_info = event.get("event")
+                if event_info:
+                    event_url_key = event_info.get("event_url_key")
+                    event_name = event_url_key.split('/')[-1] if event_url_key else "不明なイベント"
+                    
+                    participated_events.append({
+                        'event_name': event_name,
+                        'start_date': pd.to_datetime(event_info.get("started_at"), unit='s'),
+                        'end_date': pd.to_datetime(event_info.get("ended_at"), unit='s')
+                    })
+        
+        if not participated_events:
+            st.warning(f"ルームID {room_id} は現在、イベントに参加していません。")
+            df['参加イベント'] = '情報なし'
+            return df
+        
+        participated_df = pd.DataFrame(participated_events)
+        
+        df['参加イベント'] = '通常配信'
+        for index, row in df.iterrows():
+            matched_events = participated_df[
+                (participated_df['start_date'] <= row['配信日時']) & 
+                (participated_df['end_date'] >= row['配信日時'])
+            ]['event_name']
+
+            if not matched_events.empty:
+                df.loc[index, '参加イベント'] = ' / '.join(matched_events.unique())
+
+        st.success("イベント情報の取得と紐づけが完了しました。")
+        return df
+    
+    except requests.exceptions.RequestException as e:
+        st.error(f"APIからのイベント情報取得に失敗しました。詳細: {e}")
+        st.error(f"ステータスコード: {response.status_code if 'response' in locals() else 'N/A'}")
         df['参加イベント'] = '情報なし'
         return df
-
-    participated_events = []
-    
-    # 各イベントに参加しているか確認
-    progress_bar = st.progress(0)
-    for i, event in enumerate(events_list):
-        event_id = event.get("event_id")
-        event_url_key = event.get("event_url_key")
-        event_name = event_url_key.split('/')[-1] if event_url_key else f"Event_{event_id}"
-        
-        if check_event_participation(event_id, room_id):
-            event_start_date = pd.to_datetime(event.get("started_at"), unit='s')
-            event_end_date = pd.to_datetime(event.get("ended_at"), unit='s')
-            
-            participated_events.append({
-                'event_name': event_name,
-                'start_date': event_start_date,
-                'end_date': event_end_date
-            })
-            
-        progress_bar.progress((i + 1) / len(events_list))
-        time.sleep(0.1) # サーバー負荷軽減のため、わずかに待機
-
-    if not participated_events:
-        st.warning(f"ルームID {room_id} の過去の参加イベントが見つかりませんでした。")
-        df['参加イベント'] = '情報なし'
-        return df
-        
-    participated_df = pd.DataFrame(participated_events)
-    
-    # 各配信に該当するイベントを紐づけ
-    df['参加イベント'] = '通常配信'
-    for index, row in df.iterrows():
-        matched_events = participated_df[
-            (participated_df['start_date'] <= row['配信日時']) & 
-            (participated_df['end_date'] >= row['配信日時'])
-        ]['event_name']
-
-        if not matched_events.empty:
-            df.loc[index, '参加イベント'] = ' / '.join(matched_events.unique())
-    
-    st.success("イベント情報の取得と紐づけが完了しました。")
-    return df
 
 if st.button("分析を実行"):
     if len(selected_date_range) == 2:
