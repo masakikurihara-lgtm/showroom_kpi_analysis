@@ -518,6 +518,18 @@ if st.session_state.run_analysis:
                 st.dataframe(df_display, hide_index=True)
 
                 st.subheader("📊 その他数値分析")
+                # CSSで間隔を調整
+                st.markdown(
+                    """
+                    <style>
+                    .st-emotion-cache-121q0d6 {
+                        margin-bottom: -15px; /* st.captionとの間のマージンを負の値にして詰める */
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True
+                )
+                
                 col1, col2, col3, col4 = st.columns(4) 
                 
                 with col1:
@@ -574,7 +586,6 @@ if st.session_state.run_analysis:
                     mk_avg_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).mean() * 100
                     mk_median_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).median() * 100
                     st.caption(f"（MK平均値：{mk_avg_rate_gift:.1f}% / MK中央値：{mk_median_rate_gift:.1f}%）")
-
 
                 with col4:
                     # 短時間滞在者率の計算
