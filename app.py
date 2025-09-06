@@ -201,10 +201,13 @@ if st.button("分析を実行"):
             st.subheader("📝 全体サマリー")
             total_support_points = int(df["獲得支援point"].sum())
             total_followers = int(df["フォロワー数"].iloc[-1]) # 最新のフォロワー数
-            total_point_increase = int(df["フォロワー増減数"].sum()) # フォロワー増減の合計
+            
+            # --- 修正点: フォロワー純増数の計算方法を変更 ---
+            initial_followers = int(df["フォロワー数"].iloc[0])
+            total_follower_increase = total_followers - initial_followers
             
             st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
-            st.markdown(f"**フォロワー純増数:** {total_point_increase:,} 人")
+            st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
             st.markdown(f"**最終フォロワー数:** {total_followers:,} 人")
             
             # 戦略的な示唆
