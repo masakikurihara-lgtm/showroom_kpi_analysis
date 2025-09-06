@@ -34,15 +34,16 @@ def load_and_preprocess_data(member_id):
     url = f"https://mksoul-pro.com/showroom/csv/2025-08_all_{member_id}.csv"
     
     try:
-        # requestsを使ってURLからCSVデータを取得
+        # requestsを使ってURLからCSVデータをバイナリで取得
         response = requests.get(url)
         response.raise_for_status()  # HTTPエラーをチェック
         
-        # バイナリデータをStringIOで読み込める形に変換
-        csv_data = io.StringIO(response.text)
+        # バイナリデータをShift-JISでデコードし、文字列として読み込む
+        csv_text = response.content.decode('shift_jis')
+        csv_data = io.StringIO(csv_text)
         
-        # pandasでCSVを読み込む。文字化け防止のためencodingを指定
-        df = pd.read_csv(csv_data, encoding='utf-8')
+        # pandasでCSVを読み込む
+        df = pd.read_csv(csv_data)
         
         # 列名から不要な引用符を削除
         df.columns = df.columns.str.replace('"', '')
