@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 import io
 import requests
-from datetime import date, timedelta
+from datetime import datetime, date, timedelta
+import pytz
 import plotly.graph_objects as go
 import plotly.express as px
 import time
@@ -26,9 +27,13 @@ account_id = st.text_input(
     ""
 )
 
+# 日本時間（JST）を明示的に指定
+JST = pytz.timezone('Asia/Tokyo')
+today = datetime.now(JST).date()
+
 # 日付範囲の選択ウィジェット
 st.subheader("🗓️ 分析期間を選択")
-today = date.today()
+# today変数は、上記で修正したものをそのまま使用
 default_start_date = today - timedelta(days=30)
 default_end_date = today
 selected_date_range = st.date_input(
