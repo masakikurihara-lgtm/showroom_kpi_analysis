@@ -256,14 +256,15 @@ if st.button("分析を実行"):
                 )
                 
                 st.plotly_chart(fig_time_of_day, use_container_width=True)
-
+                
+                # --- PC表示の調整 ---
+                # グラフと次のセクションの間に十分なスペースを確保します
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                
                 st.subheader("📝 配信ごとの詳細データ")
                 df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
                 st.dataframe(df_display, hide_index=True)
-                
-                # アイコン説明との間隔を空けるための空行を追加
-                st.markdown("<br>", unsafe_allow_html=True)
-                
+
                 st.subheader("🎯 初見/リピーター分析")
                 col1, col2, col3 = st.columns(3)
                 
