@@ -539,9 +539,9 @@ if st.session_state.run_analysis:
                             border: none;
                         }}
                         .metric-label {{
-                            font-weight: bold;
+                            font-weight: 600;
                             font-size: 16px;
-                            color: #707070;
+                            color: #000000;
                             margin-bottom: -5px;
                         }}
                         .metric-value {{
