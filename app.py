@@ -219,20 +219,18 @@ if st.button("分析を実行"):
                 time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
 
-                # --- 修正点：3つのグラフを縦に並べるように変更 ---
                 fig_time_of_day = make_subplots(
                     rows=3, cols=1, 
                     subplot_titles=("獲得支援point", "合計視聴数", "コメント数"),
                 )
                 
-                # --- 修正点：各グラフに個別の凡例を配置 ---
                 fig_time_of_day.add_trace(
                     go.Bar(
                         x=time_of_day_kpis['時間帯'],
                         y=time_of_day_kpis['獲得支援point'],
                         name='獲得支援point',
                         marker_color='#1f77b4',
-                        showlegend=True
+                        showlegend=False
                     ),
                     row=1, col=1
                 )
@@ -243,7 +241,7 @@ if st.button("分析を実行"):
                         y=time_of_day_kpis['合計視聴数'],
                         name='合計視聴数',
                         marker_color='#ff7f0e',
-                        showlegend=True
+                        showlegend=False
                     ),
                     row=2, col=1
                 )
@@ -254,23 +252,21 @@ if st.button("分析を実行"):
                         y=time_of_day_kpis['コメント数'],
                         name='コメント数',
                         marker_color='#2ca02c',
-                        showlegend=True
+                        showlegend=False
                     ),
                     row=3, col=1
                 )
                 
                 fig_time_of_day.update_layout(
                     title_text="時間帯別KPI平均値",
-                    # 凡例を各グラフの直下に移動
-                    legend=dict(
-                        orientation="h",
-                        yanchor="top",
-                        y=-0.2, # 凡例全体の位置
-                        xanchor="center",
-                        x=0.5
-                    ),
-                    # 余白の調整
-                    margin=dict(t=50, b=100)
+                    # 凡例を非表示にしました。サブプロットタイトルが凡例の役割を兼ねます。
+                    showlegend=False,
+                    # PCでの縦横比調整
+                    height=800,
+                    # スマホでの文字サイズ調整
+                    font=dict(size=12),
+                    # スマホでの余白調整
+                    margin=dict(t=50, b=100, l=40, r=40)
                 )
 
                 fig_time_of_day.update_yaxes(title_text="獲得支援point", row=1, col=1)
