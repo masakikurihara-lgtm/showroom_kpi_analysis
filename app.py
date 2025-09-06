@@ -7,6 +7,7 @@ from datetime import date, timedelta
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
+import streamlit.components.v1 as components
 
 # ページ設定
 st.set_page_config(
@@ -219,54 +220,66 @@ if st.button("分析を実行"):
                 time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
 
-                fig_time_of_day = make_subplots(
-                    rows=3, cols=1, 
+                # PCとスマホの切り替えをplotlyの設定で対応
+                # スマホでは縦に並べる
+                fig_mobile = make_subplots(
+                    rows=3, cols=1,
                     subplot_titles=("獲得支援point", "合計視聴数", "コメント数"),
                 )
-                
-                fig_time_of_day.add_trace(
-                    go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['獲得支援point'],
-                        name='獲得支援point',
-                        marker_color='#1f77b4',
-                    ),
-                    row=1, col=1
-                )
-                
-                fig_time_of_day.add_trace(
-                    go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['合計視聴数'],
-                        name='合計視聴数',
-                        marker_color='#ff7f0e',
-                    ),
-                    row=2, col=1
-                )
-                
-                fig_time_of_day.add_trace(
-                    go.Bar(
-                        x=time_of_day_kpis['時間帯'],
-                        y=time_of_day_kpis['コメント数'],
-                        name='コメント数',
-                        marker_color='#2ca02c',
-                    ),
-                    row=3, col=1
-                )
-                
-                fig_time_of_day.update_layout(
+                fig_mobile.add_trace(go.Bar(x=time_of_day_kpis['時間帯'], y=time_of_day_kpis['獲得支援point'], name='獲得支援point'), row=1, col=1)
+                fig_mobile.add_trace(go.Bar(x=time_of_day_kpis['時間帯'], y=time_of_day_kpis['合計視聴数'], name='合計視聴数'), row=2, col=1)
+                fig_mobile.add_trace(go.Bar(x=time_of_day_kpis['時間帯'], y=time_of_day_kpis['コメント数'], name='コメント数'), row=3, col=1)
+                fig_mobile.update_layout(
                     title_text="時間帯別KPI平均値",
                     showlegend=False,
-                    # レイアウトを自動調整し、余白を最適化
-                    autosize=True,
-                    margin=dict(t=50, b=100, l=40, r=40)
+                    height=800,
+                    margin=dict(t=50, b=100, l=40, r=40),
+                    font=dict(size=10)
                 )
+                fig_mobile.update_yaxes(title_text="獲得支援point", row=1, col=1)
+                fig_mobile.update_yaxes(title_text="合計視聴数", row=2, col=1)
+                fig_mobile.update_yaxes(title_text="コメント数", row=3, col=1)
 
-                fig_time_of_day.update_yaxes(title_text="獲得支援point", row=1, col=1)
-                fig_time_of_day.update_yaxes(title_text="合計視聴数", row=2, col=1)
-                fig_time_of_day.update_yaxes(title_text="コメント数", row=3, col=1)
+                # PCでは横に並べる
+                fig_pc = make_subplots(
+                    rows=1, cols=3,
+                    subplot_titles=("獲得支援point", "合計視聴数", "コメント数"),
+                )
+                fig_pc.add_trace(go.Bar(x=time_of_day_kpis['時間帯'], y=time_of_day_kpis['獲得支援point'], name='獲得支援point'), row=1, col=1)
+                fig_pc.add_trace(go.Bar(x=time_of_day_kpis['時間帯'], y=time_of_day_kpis['合計視聴数'], name='合計視聴数'), row=1, col=2)
+                fig_pc.add_trace(go.Bar(x=time_of_day_kpis['時間帯'], y=time_of_day_kpis['コメント数'], name='コメント数'), row=1, col=3)
+                fig_pc.update_layout(
+                    title_text="時間帯別KPI平均値",
+                    showlegend=False,
+                    height=400,
+                    margin=dict(t=50, b=100, l=40, r=40),
+                    font=dict(size=12)
+                )
+                fig_pc.update_yaxes(title_text="獲得支援point", row=1, col=1)
+                fig_pc.update_yaxes(title_text="合計視聴数", row=1, col=2)
+                fig_pc.update_yaxes(title_text="コメント数", row=1, col=3)
 
-                st.plotly_chart(fig_time_of_day, use_container_width=True)
+                # StreamlitのCSSマジックでPC/スマホを判別し表示
+                st.markdown("""
+                    <style>
+                    /* PC用のスタイル（768px以上） */
+                    @media (min-width: 768px) {
+                        #mobile-graphs { display: none; }
+                    }
+                    /* スマホ用のスタイル（768px未満） */
+                    @media (max-width: 767px) {
+                        #pc-graphs { display: none; }
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+
+                st.markdown("<div id='pc-graphs'>", unsafe_allow_html=True)
+                st.plotly_chart(fig_pc, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+                st.markdown("<div id='mobile-graphs'>", unsafe_allow_html=True)
+                st.plotly_chart(fig_mobile, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
                 
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 
