@@ -124,7 +124,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     for col in [
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
         "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
-        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)" # <- 追加
+        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)"
     ]:
         if col in filtered_df.columns:
             filtered_df[col] = filtered_df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
@@ -140,17 +140,17 @@ if st.button("分析を実行"):
         if df is not None and not df.empty:
             st.success("データの読み込みと前処理が完了しました！")
             
-            # グラフ表示用データを時系列でソート
-            df_sorted = df.sort_values(by="配信日時", ascending=True).copy()
-
-            # --- 修正点: Plotly Graph Objects を使用して二重Y軸グラフを作成 ---
+            # --- 修正点: すべての計算・表示の前に、データを時系列昇順に並べ替える ---
+            df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
+            
+            # 分析と可視化
             st.subheader("📈 主要KPIの推移")
             fig = go.Figure()
 
             # 左Y軸 (獲得支援point)
             fig.add_trace(go.Scatter(
-                x=df_sorted["配信日時"],
-                y=df_sorted["獲得支援point"],
+                x=df_sorted_asc["配信日時"],
+                y=df_sorted_asc["獲得支援point"],
                 name="獲得支援point",
                 mode='lines+markers',
                 marker=dict(symbol='circle')
@@ -158,16 +158,16 @@ if st.button("分析を実行"):
 
             # 右Y軸 (配信時間(分), 合計視聴数)
             fig.add_trace(go.Scatter(
-                x=df_sorted["配信日時"],
-                y=df_sorted["配信時間(分)"],
+                x=df_sorted_asc["配信日時"],
+                y=df_sorted_asc["配信時間(分)"],
                 name="配信時間(分)",
                 mode='lines+markers',
                 yaxis="y2",
                 marker=dict(symbol='square')
             ))
             fig.add_trace(go.Scatter(
-                x=df_sorted["配信日時"],
-                y=df_sorted["合計視聴数"],
+                x=df_sorted_asc["配信日時"],
+                y=df_sorted_asc["合計視聴数"],
                 name="合計視聴数",
                 mode='lines+markers',
                 yaxis="y2",
@@ -187,14 +187,15 @@ if st.button("分析を実行"):
             
             # 詳細データテーブルの表示
             st.subheader("📝 配信ごとの詳細データ")
-            df_display = df.sort_values(by="配信日時", ascending=False)
+            # 表示用にデータを降順に並び替え
+            df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
             st.dataframe(df_display, hide_index=True)
 
             st.subheader("🎯 初見/リピーター分析")
             col1, col2, col3 = st.columns(3)
             
-            total_visitors = df["視聴会員数"].sum()
-            first_time_visitors = df["初ルーム来訪者数"].sum()
+            total_visitors = df_sorted_asc["視聴会員数"].sum()
+            first_time_visitors = df_sorted_asc["初ルーム来訪者数"].sum()
             
             with col1:
                 st.metric(
@@ -204,8 +205,8 @@ if st.button("分析を実行"):
                 )
                 
             with col2:
-                total_commenters = df["コメント人数"].sum()
-                first_time_commenters = df["初コメント人数"].sum()
+                total_commenters = df_sorted_asc["コメント人数"].sum()
+                first_time_commenters = df_sorted_asc["初コメント人数"].sum()
                 st.metric(
                     label="初コメント率",
                     value=f"{first_time_commenters / total_commenters * 100:.1f}%" if total_commenters > 0 else "0%",
@@ -213,8 +214,8 @@ if st.button("分析を実行"):
                 )
 
             with col3:
-                total_gifters = df["ギフト人数"].sum()
-                first_time_gifters = df["初ギフト人数"].sum()
+                total_gifters = df_sorted_asc["ギフト人数"].sum()
+                first_time_gifters = df_sorted_asc["初ギフト人数"].sum()
                 st.metric(
                     label="初ギフト率",
                     value=f"{first_time_gifters / total_gifters * 100:.1f}%" if total_gifters > 0 else "0%",
@@ -222,9 +223,9 @@ if st.button("分析を実行"):
                 )
 
             st.subheader("📝 全体サマリー")
-            total_support_points = int(df["獲得支援point"].sum())
-            total_followers = int(df["フォロワー数"].iloc[-1])
-            initial_followers = int(df["フォロワー数"].iloc[0])
+            total_support_points = int(df_sorted_asc["獲得支援point"].sum())
+            total_followers = int(df_sorted_asc["フォロワー数"].iloc[-1])
+            initial_followers = int(df_sorted_asc["フォロワー数"].iloc[0])
             total_follower_increase = total_followers - initial_followers
             
             st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
@@ -232,8 +233,8 @@ if st.button("分析を実行"):
             st.markdown(f"**最終フォロワー数:** {total_followers:,} 人")
             
             st.subheader("💡 今後の戦略的示唆")
-            avg_support_per_viewer = (df["獲得支援point"] / df["視聴会員数"]).mean()
-            avg_comments_per_viewer = (df["コメント人数"] / df["視聴会員数"]).mean()
+            avg_support_per_viewer = (df_sorted_asc["獲得支援point"] / df_sorted_asc["視聴会員数"]).mean()
+            avg_comments_per_viewer = (df_sorted_asc["コメント人数"] / df_sorted_asc["視聴会員数"]).mean()
             
             if avg_support_per_viewer > 50:
                 st.markdown("👉 視聴会員数あたりの獲得支援ポイントが高い傾向にあります。熱心なファン層が定着しているようです。")
