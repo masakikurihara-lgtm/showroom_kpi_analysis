@@ -158,6 +158,7 @@ if st.button("分析を実行"):
 
                 # 時間帯別パフォーマンス分析をここに追加
                 st.subheader("📊 時間帯別パフォーマンス分析")
+                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。")
                 
                 df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
                 
@@ -270,6 +271,7 @@ if st.button("分析を実行"):
                 st.plotly_chart(fig, use_container_width=True)
                 
                 st.subheader("📊 時間帯別パフォーマンス分析")
+                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。")
                 
                 df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
                 
