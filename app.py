@@ -38,31 +38,19 @@ def load_and_preprocess_data(member_id):
         response = requests.get(url)
         response.raise_for_status()  # HTTPエラーをチェック
         
-        # レスポンスのテキストを読み込み
-        csv_text = response.text
+        # バイナリデータをStringIOで読み込める形に変換
+        csv_data = io.StringIO(response.text)
         
-        # 各行の末尾に付加されている余分な列を削除
-        cleaned_lines = []
-        for line in csv_text.splitlines():
-            # CSVの行をカンマで分割
-            parts = line.split(',')
-            # 列数が多すぎる場合、最後の列を削除
-            if len(parts) > 28:
-                cleaned_line = ','.join(parts[:-1])
-            else:
-                cleaned_line = line
-            cleaned_lines.append(cleaned_line)
-        
-        # クリーンアップしたテキストを結合
-        cleaned_csv_text = "\n".join(cleaned_lines)
-        
-        # pandasでCSVを読み込む
-        csv_data = io.StringIO(cleaned_csv_text)
-        df = pd.read_csv(csv_data)
+        # CSVを読み込む
+        # BOM付きUTF-8に対応するため、encoding='utf_8_sig' を使用
+        df = pd.read_csv(csv_data, encoding='utf_8_sig')
         
         # 列名から前後の空白と引用符を削除
         df.columns = df.columns.str.strip().str.replace('"', '')
         
+        # ヘッダーとデータ行の列数が一致しない問題を解決するため、最後の列を削除
+        df = df.iloc[:, :-1]
+
         # データ型変換とクリーンアップ
         for col in [
             "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
