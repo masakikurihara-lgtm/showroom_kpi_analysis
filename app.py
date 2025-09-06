@@ -156,11 +156,79 @@ if st.button("分析を実行"):
                 st.markdown(f"**合計視聴数:** {total_viewers:,} 人")
                 st.markdown(f"**合計コメント数:** {total_comments:,} 件")
 
-                st.subheader("📝 全ライバーの配信詳細データ")
-                df_display = df.sort_values(by="配信日時", ascending=False)
-                st.dataframe(df_display, hide_index=True)
+                # 時間帯別パフォーマンス分析をここに追加
+                st.subheader("📊 時間帯別パフォーマンス分析")
+                
+                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
+                
+                time_of_day_kpis = df.groupby('時間帯').agg({
+                    '獲得支援point': 'mean',
+                    '合計視聴数': 'mean',
+                    'コメント数': 'mean'
+                }).reset_index()
 
-            else:
+                time_of_day_order = [
+                    "深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", 
+                    "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
+                    "夜ピーク (21-22時)", "夜後半 (22-24時)"
+                ]
+                time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    fig1 = go.Figure(go.Bar(
+                        x=time_of_day_kpis['時間帯'],
+                        y=time_of_day_kpis['獲得支援point'],
+                        marker_color='#1f77b4',
+                        name='獲得支援point'
+                    ))
+                    fig1.update_layout(
+                        title_text="獲得支援point",
+                        title_font_size=16,
+                        yaxis=dict(title="獲得支援point", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig1, use_container_width=True)
+                
+                with col2:
+                    fig2 = go.Figure(go.Bar(
+                        x=time_of_day_kpis['時間帯'],
+                        y=time_of_day_kpis['合計視聴数'],
+                        marker_color='#ff7f0e',
+                        name='合計視聴数'
+                    ))
+                    fig2.update_layout(
+                        title_text="合計視聴数",
+                        title_font_size=16,
+                        yaxis=dict(title="合計視聴数", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig2, use_container_width=True)
+
+                with col3:
+                    fig3 = go.Figure(go.Bar(
+                        x=time_of_day_kpis['時間帯'],
+                        y=time_of_day_kpis['コメント数'],
+                        marker_color='#2ca02c',
+                        name='コメント数'
+                    ))
+                    fig3.update_layout(
+                        title_text="コメント数",
+                        title_font_size=16,
+                        yaxis=dict(title="コメント数", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig3, use_container_width=True)
+
+            else: # 個別アカウントIDの場合
                 st.subheader("📈 主要KPIの推移")
                 df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
                 
@@ -219,7 +287,6 @@ if st.button("分析を実行"):
                 time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
 
-                # PCとスマホの表示をst.columnsで切り替え
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
@@ -272,9 +339,6 @@ if st.button("分析を実行"):
                         margin=dict(t=50, b=0, l=40, r=40)
                     )
                     st.plotly_chart(fig3, use_container_width=True)
-                
-                # 以下の行が余白の原因です。この行を削除します。
-                # st.markdown("<br><br>", unsafe_allow_html=True)
                 
                 st.subheader("📝 配信ごとの詳細データ")
                 df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
