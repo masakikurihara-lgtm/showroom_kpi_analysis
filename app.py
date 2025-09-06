@@ -113,8 +113,15 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     ]:
         if col in filtered_df.columns:
             filtered_df[col] = filtered_df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
+    
+    # ルームIDを取得
+    if "ルームID" in filtered_df.columns and not filtered_df.empty:
+        room_id = filtered_df["ルームID"].iloc[0]
+    else:
+        room_id = None
+        st.warning("詳細データにルームIDが見つかりませんでした。イベント情報は取得できません。")
 
-    return filtered_df
+    return filtered_df, room_id
 
 def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6:
@@ -136,11 +143,62 @@ def categorize_time_of_day_with_range(hour):
     else:
         return "深夜 (0-3時)"
 
+def get_event_data_from_api(room_id):
+    """
+    指定されたルームIDのイベント情報を取得する（非公式APIの例）
+    """
+    url = f"https://www.showroom-live.com/api/room/event_list?room_id={room_id}"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status() # HTTPエラーをチェック
+        events = response.json().get("event_list", [])
+        return events
+    except requests.exceptions.RequestException as e:
+        print(f"APIからのイベント情報取得に失敗しました: {e}")
+        return []
+
+def add_event_info_to_df(df, room_id):
+    """
+    DataFrameにイベント情報を追加する
+    """
+    if room_id is None:
+        df['参加イベント'] = '情報なし'
+        return df
+
+    # イベント情報の取得
+    events = get_event_data_from_api(room_id)
+    if not events:
+        df['参加イベント'] = '情報なし'
+        return df
+
+    # イベントデータを整形
+    event_df = pd.DataFrame(events)
+    event_df['start_date'] = pd.to_datetime(event_df['start_date'], unit='s')
+    event_df['end_date'] = pd.to_datetime(event_df['end_date'], unit='s')
+    event_df['event_name'] = event_df['event_url_key'].str.split('/').str[-1] # URLからイベント名を抽出
+
+    # 各配信に該当するイベントを紐づけ
+    df['参加イベント'] = ''
+    for index, row in df.iterrows():
+        # 配信日時がイベント期間内にあるかチェック
+        matched_events = event_df[
+            (event_df['start_date'] <= row['配信日時']) & 
+            (event_df['end_date'] >= row['配信日時'])
+        ]['event_name']
+
+        if not matched_events.empty:
+            df.loc[index, '参加イベント'] = ' / '.join(matched_events.unique())
+        else:
+            df.loc[index, '参加イベント'] = '通常配信'
+
+    return df
+
 if st.button("分析を実行"):
     if len(selected_date_range) == 2:
         start_date = selected_date_range[0]
         end_date = selected_date_range[1]
-        df = load_and_preprocess_data(account_id, start_date, end_date)
+        df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
+        
         if df is not None and not df.empty:
             st.success("データの読み込みと前処理が完了しました！")
             
@@ -177,7 +235,7 @@ if st.button("分析を実行"):
                 time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
                 
                 time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
-                
+
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
@@ -502,7 +560,11 @@ if st.button("分析を実行"):
                     st.plotly_chart(fig6, use_container_width=True)
 
                 st.subheader("📝 配信ごとの詳細データ")
-                df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
+                
+                # イベント情報を追加
+                df_with_events = add_event_info_to_df(df, room_id)
+                
+                df_display = df_with_events.sort_values(by="配信日時", ascending=False)
                 st.dataframe(df_display, hide_index=True)
 
                 st.subheader("🎯 初見/リピーター分析")
