@@ -42,15 +42,20 @@ def load_and_preprocess_data(member_id):
         csv_data = io.StringIO(response.text)
         
         # CSVを読み込む
-        # この時点で、ヘッダーとデータ行の列数の不一致により最後の列が追加される
         df = pd.read_csv(csv_data)
         
-        # 列名から前後の空白を削除
+        # 列名から前後の空白と、見えない特殊文字を削除
         df.columns = df.columns.str.strip()
         
         # ヘッダーとデータ行の列数が一致しない問題を解決するため、最後の列を削除
         df = df.iloc[:, :-1]
-
+        
+        # 列名から「配信日時」を含む列を特定
+        try:
+            date_col = next(col for col in df.columns if '配信日時' in col)
+        except StopIteration:
+            raise KeyError("CSVファイルに '配信日時' を含む列が見つかりませんでした。")
+        
         # データ型変換とクリーンアップ
         for col in [
             "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
@@ -61,7 +66,10 @@ def load_and_preprocess_data(member_id):
                 df[col] = df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
         
         # "配信日時"列をdatetime型に変換
-        df["配信日時"] = pd.to_datetime(df["配信日時"])
+        df[date_col] = pd.to_datetime(df[date_col])
+        
+        # 以降の処理のために、列名を確実に「配信日時」に統一
+        df = df.rename(columns={date_col: '配信日時'})
 
         return df
 
