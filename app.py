@@ -15,23 +15,27 @@ st.set_page_config(
 st.title("SHOWROOMライバーKPI分析ツール")
 st.markdown("ライブ配信データから、フォロワーやポイント獲得の傾向を分析し、今後の戦略を検討しましょう。")
 
-# メンバーID入力
-member_id = st.text_input(
-    "分析したいライバーのメンバーIDを入力してください",
-    "343547_natsume" # 例としてデフォルト値を設定
+# メンバーID入力 -> アカウントID入力に変更
+account_id = st.text_input(
+    "分析したいライバーの**アカウントID**を入力してください",
+    "tmamu" # 例としてデフォルト値を設定
 )
 
 # データの読み込みと前処理関数
-def load_and_preprocess_data(member_id):
+def load_and_preprocess_data(account_id):
     """
-    指定されたメンバーIDのCSVをURLから読み込み、前処理を行う
+    指定されたアカウントIDのCSVをURLから読み込み、前処理を行う
     """
-    if not member_id:
-        st.error("メンバーIDを入力してください。")
+    if not account_id:
+        st.error("アカウントIDを入力してください。")
         return None
 
-    # URLを生成（2025年8月を固定）
-    url = f"https://mksoul-pro.com/showroom/csv/2025-08_all_{member_id}.csv"
+    # URLを生成
+    # 元のURLからアカウントIDとルームIDが分離
+    # この例ではルームIDを仮に481475としています。
+    # ルームIDも可変の場合は、別途入力欄が必要です。
+    # 2025年8月の日付とルームIDは固定と仮定します。
+    url = f"https://mksoul-pro.com/showroom/csv/2025-08_all_{account_id}_481475.csv"
     
     try:
         # requestsを使ってURLからCSVデータを取得
@@ -81,7 +85,7 @@ def load_and_preprocess_data(member_id):
         return df
 
     except requests.exceptions.RequestException as e:
-        st.error(f"データの読み込み中にエラーが発生しました。メンバーIDが正しいか、URLにアクセスできるか確認してください。エラー: {e}")
+        st.error(f"データの読み込み中にエラーが発生しました。アカウントIDが正しいか、URLにアクセスできるか確認してください。エラー: {e}")
         return None
     except Exception as e:
         st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
@@ -89,7 +93,7 @@ def load_and_preprocess_data(member_id):
 
 # 分析実行ボタン
 if st.button("分析を実行"):
-    df = load_and_preprocess_data(member_id)
+    df = load_and_preprocess_data(account_id)
     if df is not None and not df.empty:
         st.success("データの読み込みと前処理が完了しました！")
         
@@ -157,4 +161,4 @@ if st.button("分析を実行"):
             st.markdown("👉 視聴会員数に対するコメント人数が少ないです。リスナーがコメントしやすいような質問を投げかけたり、イベントを活用してコメントを促す工夫を検討しましょう。")
 
     elif df is not None and df.empty:
-        st.warning("指定されたメンバーIDのデータが見つかりませんでした。")
+        st.warning("指定されたアカウントIDのデータが見つかりませんでした。")
