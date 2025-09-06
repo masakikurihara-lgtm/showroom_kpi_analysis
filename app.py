@@ -41,14 +41,20 @@ def load_and_preprocess_data(member_id):
         # バイナリデータをStringIOで読み込める形に変換
         csv_data = io.StringIO(response.text)
         
-        # CSVを読み込む
-        # BOM付きUTF-8に対応するため、encoding='utf_8_sig' を使用
-        df = pd.read_csv(csv_data, encoding='utf_8_sig')
+        # ヘッダーなしでCSVを読み込む
+        df = pd.read_csv(csv_data, header=None)
         
-        # 列名から前後の空白と引用符を削除
-        df.columns = df.columns.str.strip().str.replace('"', '')
+        # CSVのヘッダー行を抽出
+        header_row = df.iloc[0].tolist()
         
-        # ヘッダーとデータ行の列数が一致しない問題を解決するため、最後の列を削除
+        # データの最初の行（元のヘッダー）を削除
+        df = df.iloc[1:].copy()
+        
+        # ヘッダー行の余分なカンマ（NaN）を削除し、列名に設定
+        header_row = [col for col in header_row if pd.notna(col)]
+        df.columns = header_row
+        
+        # データ行の余分な最後の列を削除
         df = df.iloc[:, :-1]
 
         # データ型変換とクリーンアップ
@@ -61,10 +67,7 @@ def load_and_preprocess_data(member_id):
                 df[col] = df[col].astype(str).str.replace(",", "").replace("-", "0").astype(float)
         
         # "配信日時"列をdatetime型に変換
-        if "配信日時" in df.columns:
-            df["配信日時"] = pd.to_datetime(df["配信日時"])
-        else:
-            raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
+        df["配信日時"] = pd.to_datetime(df["配信日時"])
 
         return df
 
