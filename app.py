@@ -59,7 +59,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         
         try:
             response = requests.get(url)
-            # --- 修正点: raise_or_status から raise_for_status に変更 ---
             response.raise_for_status()
             csv_text = response.content.decode('utf-8-sig')
             lines = csv_text.strip().split('\n')
@@ -129,9 +128,9 @@ def categorize_time_of_day(hour):
     elif 15 <= hour < 18:
         return "午後"
     elif 18 <= hour < 21:
-        return "夜"
+        return "夜前半"
     elif 21 <= hour < 22:
-        return "イベント直前"
+        return "夜ピーク"
     elif 22 <= hour < 24:
         return "夜後半"
     else:
@@ -212,7 +211,7 @@ if st.button("分析を実行"):
                     'コメント数': 'mean'
                 }).reset_index()
 
-                time_of_day_order = ["深夜", "早朝", "朝", "午前", "昼", "午後", "夜", "イベント直前", "夜後半"]
+                time_of_day_order = ["深夜", "早朝", "朝", "午前", "昼", "午後", "夜前半", "夜ピーク", "夜後半"]
                 time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
 
@@ -261,7 +260,10 @@ if st.button("分析を実行"):
                 st.subheader("📝 配信ごとの詳細データ")
                 df_display = df_sorted_asc.sort_values(by="配信日時", ascending=False)
                 st.dataframe(df_display, hide_index=True)
-
+                
+                # アイコン説明との間隔を空けるための空行を追加
+                st.markdown("<br>", unsafe_allow_html=True)
+                
                 st.subheader("🎯 初見/リピーター分析")
                 col1, col2, col3 = st.columns(3)
                 
@@ -295,7 +297,6 @@ if st.button("分析を実行"):
 
                 st.subheader("📝 全体サマリー")
                 total_support_points = int(df_sorted_asc["獲得支援point"].sum())
-                # データが空の場合にエラーにならないようにする
                 if not df_sorted_asc.empty:
                     total_followers = int(df_sorted_asc["フォロワー数"].iloc[-1])
                     initial_followers = int(df_sorted_asc["フォロワー数"].iloc[0])
