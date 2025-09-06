@@ -7,6 +7,7 @@ from datetime import date, timedelta
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
+import streamlit.components.v1 as components
 
 # ページ設定
 st.set_page_config(
@@ -14,6 +15,20 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
+
+# JavaScriptで画面幅を取得し、Streamlitに渡すコンポーネント
+@st.cache_data
+def get_screen_width():
+    return components.html(
+        """
+        <script>
+            window.parent.postMessage({
+                'streamlit_screen_width': window.innerWidth
+            }, '*');
+        </script>
+        """,
+        height=0
+    )
 
 # ヘッダー
 st.title("SHOWROOMライバーKPI分析ツール")
@@ -218,10 +233,29 @@ if st.button("分析を実行"):
                 ]
                 time_of_day_kpis['時間帯'] = pd.Categorical(time_of_day_kpis['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis = time_of_day_kpis.sort_values('時間帯')
+                
+                # --- ここから画面幅による切り替え ---
+                # JavaScriptで取得した画面幅の情報を利用
+                screen_width_str = st.query_params.get("streamlit_screen_width")
+                if screen_width_str:
+                    screen_width = int(screen_width_str[0])
+                else:
+                    # 初期ロード時や取得失敗時はPCとして扱う
+                    screen_width = 1000  
+
+                # 画面幅が小さい場合は縦に、それ以外は横に並べる
+                is_mobile = screen_width < 768  # 一般的なタブレット/PCの境界を768pxとする
+                
+                if is_mobile:
+                    rows, cols = 3, 1
+                    fig_height = 800
+                else:
+                    rows, cols = 1, 3
+                    fig_height = 400
 
                 fig_time_of_day = make_subplots(
-                    rows=3, cols=1, 
-                    subplot_titles=(), # タイトルを完全に削除しました
+                    rows=rows, cols=cols, 
+                    subplot_titles=("獲得支援point", "合計視聴数", "コメント数"),
                 )
                 
                 fig_time_of_day.add_trace(
@@ -230,7 +264,6 @@ if st.button("分析を実行"):
                         y=time_of_day_kpis['獲得支援point'],
                         name='獲得支援point',
                         marker_color='#1f77b4',
-                        showlegend=False
                     ),
                     row=1, col=1
                 )
@@ -241,9 +274,8 @@ if st.button("分析を実行"):
                         y=time_of_day_kpis['合計視聴数'],
                         name='合計視聴数',
                         marker_color='#ff7f0e',
-                        showlegend=False
                     ),
-                    row=2, col=1
+                    row=2 if is_mobile else 1, col=1 if is_mobile else 2
                 )
                 
                 fig_time_of_day.add_trace(
@@ -252,27 +284,27 @@ if st.button("分析を実行"):
                         y=time_of_day_kpis['コメント数'],
                         name='コメント数',
                         marker_color='#2ca02c',
-                        showlegend=False
                     ),
-                    row=3, col=1
+                    row=3 if is_mobile else 1, col=1 if is_mobile else 3
                 )
                 
                 fig_time_of_day.update_layout(
                     title_text="時間帯別KPI平均値",
                     showlegend=False,
-                    # PCでの縦横比を最適化
-                    height=800,
-                    # スマホでの文字サイズと余白を調整
+                    height=fig_height,
                     font=dict(size=10),
                     margin=dict(t=50, b=100, l=40, r=40)
                 )
 
                 fig_time_of_day.update_yaxes(title_text="獲得支援point", row=1, col=1)
-                fig_time_of_day.update_yaxes(title_text="合計視聴数", row=2, col=1)
-                fig_time_of_day.update_yaxes(title_text="コメント数", row=3, col=1)
+                fig_time_of_day.update_yaxes(title_text="合計視聴数", row=2 if is_mobile else 1, col=1 if is_mobile else 2)
+                fig_time_of_day.update_yaxes(title_text="コメント数", row=3 if is_mobile else 1, col=1 if is_mobile else 3)
 
                 st.plotly_chart(fig_time_of_day, use_container_width=True)
                 
+                # JavaScriptコンポーネントを配置
+                get_screen_width()
+
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 
                 st.subheader("📝 配信ごとの詳細データ")
