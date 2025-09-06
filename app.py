@@ -156,7 +156,9 @@ if st.button("分析を実行"):
             
             # 詳細データテーブルの表示
             st.subheader("📝 配信ごとの詳細データ")
-            st.dataframe(df, hide_index=True)
+            # 配信日時で降順に並び替え
+            df_sorted = df.sort_values(by="配信日時", ascending=False)
+            st.dataframe(df_sorted, hide_index=True)
 
             st.subheader("🎯 初見/リピーター分析")
             col1, col2, col3 = st.columns(3)
