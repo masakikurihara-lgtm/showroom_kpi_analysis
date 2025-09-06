@@ -59,7 +59,8 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         
         try:
             response = requests.get(url)
-            response.raise_or_status()
+            # --- 修正点: raise_or_status から raise_for_status に変更 ---
+            response.raise_for_status()
             csv_text = response.content.decode('utf-8-sig')
             lines = csv_text.strip().split('\n')
             header_line = lines[0]
@@ -161,7 +162,6 @@ if st.button("分析を実行"):
                 st.dataframe(df_display, hide_index=True)
 
             else:
-                # 個人分析
                 st.subheader("📈 主要KPIの推移")
                 df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
                 
@@ -202,7 +202,6 @@ if st.button("分析を実行"):
                 )
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # --- 時間帯別分析の修正 ---
                 st.subheader("📊 時間帯別パフォーマンス分析")
                 
                 df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day)
@@ -296,13 +295,16 @@ if st.button("分析を実行"):
 
                 st.subheader("📝 全体サマリー")
                 total_support_points = int(df_sorted_asc["獲得支援point"].sum())
-                total_followers = int(df_sorted_asc["フォロワー数"].iloc[-1])
-                initial_followers = int(df_sorted_asc["フォロワー数"].iloc[0])
-                total_follower_increase = total_followers - initial_followers
+                # データが空の場合にエラーにならないようにする
+                if not df_sorted_asc.empty:
+                    total_followers = int(df_sorted_asc["フォロワー数"].iloc[-1])
+                    initial_followers = int(df_sorted_asc["フォロワー数"].iloc[0])
+                    total_follower_increase = total_followers - initial_followers
+                    st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
+                    st.markdown(f"**最終フォロワー数:** {total_followers:,} 人")
                 
                 st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
-                st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
-                st.markdown(f"**最終フォロワー数:** {total_followers:,} 人")
+
                 
                 st.subheader("💡 今後の戦略的示唆")
                 avg_support_per_viewer = (df_sorted_asc["獲得支援point"] / df_sorted_asc["視聴会員数"]).mean()
