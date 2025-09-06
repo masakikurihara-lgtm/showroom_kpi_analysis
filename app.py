@@ -458,13 +458,51 @@ if st.session_state.run_analysis:
                 with col4:
                     fig4 = go.Figure(go.Bar(
                         x=time_of_day_kpis_median['時間帯'],
+                        y=time_of_day_kpis_median['獲得支援point'],
+                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
+                        textposition='auto',
+                        marker_color='#1f77b4',
+                        name='獲得支援point'
+                    ))
+                    fig4.update_layout(
+                        title_text="獲得支援point (中央値)",
+                        title_font_size=16,
+                        yaxis=dict(title="獲得支援point", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig4, use_container_width=True)
+                
+                with col5:
+                    fig5 = go.Figure(go.Bar(
+                        x=time_of_day_kpis_median['時間帯'],
+                        y=time_of_day_kpis_median['合計視聴数'],
+                        text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
+                        textposition='auto',
+                        marker_color='#ff7f0e',
+                        name='合計視聴数'
+                    ))
+                    fig5.update_layout(
+                        title_text="合計視聴数 (中央値)",
+                        title_font_size=16,
+                        yaxis=dict(title="合計視聴数", title_font_size=14),
+                        font=dict(size=12),
+                        height=400,
+                        margin=dict(t=50, b=0, l=40, r=40)
+                    )
+                    st.plotly_chart(fig5, use_container_width=True)
+
+                with col6:
+                    fig6 = go.Figure(go.Bar(
+                        x=time_of_day_kpis_median['時間帯'],
                         y=time_of_day_kpis_median['コメント数'],
                         text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']],
                         textposition='auto',
                         marker_color='#2ca02c',
                         name='コメント数'
                     ))
-                    fig4.update_layout(
+                    fig6.update_layout(
                         title_text="コメント数 (中央値)",
                         title_font_size=16,
                         yaxis=dict(title="コメント数", title_font_size=14),
@@ -472,7 +510,7 @@ if st.session_state.run_analysis:
                         height=400,
                         margin=dict(t=50, b=0, l=40, r=40)
                     )
-                    st.plotly_chart(fig4, use_container_width=True)
+                    st.plotly_chart(fig6, use_container_width=True)
 
                 st.subheader("📝 配信ごとの詳細データ")
                 
@@ -484,12 +522,12 @@ if st.session_state.run_analysis:
                 st.markdown(
                     """
                     <style>
-                    /* st.metric の値部分のスタイルを調整 */
+                    /* st.metric の値部分（st-emotion-cache-121q0d6）のスタイルを調整 */
                     .st-emotion-cache-121q0d6 {
                         margin-bottom: -10px !important; 
                     }
                     /* st.caption のマージンを調整 */
-                    .st-emotion-cache-1a6x0e3 {
+                    .st-emotion-cache-1c7v0j7, .st-emotion-cache-1a6x0e3 {
                         margin-top: -20px !important; 
                     }
                     </style>
