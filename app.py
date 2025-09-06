@@ -15,14 +15,30 @@ st.set_page_config(
 st.title("SHOWROOMライバーKPI分析ツール")
 st.markdown("ライブ配信データから、フォロワーやポイント獲得の傾向を分析し、今後の戦略を検討しましょう。")
 
-# 入力フィールドをアカウントIDのみに変更
+# アカウントIDと期間の入力フィールドを追加
 account_id = st.text_input(
     "分析したいライバーの**アカウントID**を入力してください",
-    "" # デフォルト値を空白に設定
+    ""
 )
 
+# 年と月の選択ウィジェット
+st.subheader("🗓️ 分析期間を選択")
+col_year, col_month = st.columns(2)
+with col_year:
+    selected_year = st.selectbox(
+        "年",
+        options=list(range(2024, 2026)),
+        index=1  # デフォルトで2025年を選択
+    )
+with col_month:
+    selected_month = st.selectbox(
+        "月",
+        options=list(range(1, 13)),
+        index=7  # デフォルトで8月を選択
+    )
+
 # データの読み込みと前処理関数
-def load_and_preprocess_data(account_id):
+def load_and_preprocess_data(account_id, year, month):
     """
     全員分のCSVをURLから読み込み、指定されたアカウントIDのデータのみを抽出して前処理を行う
     """
@@ -30,13 +46,13 @@ def load_and_preprocess_data(account_id):
         st.error("アカウントIDを入力してください。")
         return None
 
-    # URLを全員分データに固定
-    url = "https://mksoul-pro.com/showroom/csv/2025-08_all_all.csv"
+    # URLを動的に生成
+    url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
     
     try:
         # requestsを使ってURLからCSVデータを取得
         response = requests.get(url)
-        response.raise_for_status()  # HTTPエラーをチェック
+        response.raise_status()  # HTTPエラーをチェック
         
         # BOM付きUTF-8に対応するため、decode('utf-8-sig')を使用
         csv_text = response.content.decode('utf-8-sig')
@@ -67,7 +83,7 @@ def load_and_preprocess_data(account_id):
         filtered_df = df[df["アカウントID"] == account_id].copy()
         
         if filtered_df.empty:
-            st.warning(f"指定されたアカウントID（{account_id}）のデータが見つかりませんでした。")
+            st.warning(f"指定されたアカウントID（{account_id}）のデータが{year}年{month}月に見つかりませんでした。")
             return None
 
         # データ型変換とクリーンアップ
@@ -88,7 +104,7 @@ def load_and_preprocess_data(account_id):
         return filtered_df
 
     except requests.exceptions.RequestException as e:
-        st.error(f"データの読み込み中にエラーが発生しました。URLにアクセスできるか確認してください。エラー: {e}")
+        st.error(f"データの読み込み中にエラーが発生しました。選択した期間のデータが存在しないか、URLにアクセスできるか確認してください。エラー: {e}")
         return None
     except Exception as e:
         st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
@@ -96,7 +112,7 @@ def load_and_preprocess_data(account_id):
 
 # 分析実行ボタン
 if st.button("分析を実行"):
-    df = load_and_preprocess_data(account_id)
+    df = load_and_preprocess_data(account_id, selected_year, selected_month)
     if df is not None and not df.empty:
         st.success("データの読み込みと前処理が完了しました！")
         
@@ -163,5 +179,5 @@ if st.button("分析を実行"):
         else:
             st.markdown("👉 視聴会員数に対するコメント人数が少ないです。リスナーがコメントしやすいような質問を投げかけたり、イベントを活用してコメントを促す工夫を検討しましょう。")
 
-    elif df is not None and df.empty:
-        st.warning(f"指定されたアカウントID（{account_id}）のデータが見つかりませんでした。")
+    elif df is not None and not df.empty:
+        st.warning(f"指定されたアカウントID（{account_id}）のデータが{year}年{month}月に見つかりませんでした。")
