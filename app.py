@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 
 # ページ設定
 st.set_page_config(
-    page_title="SHOWROOMライバーKPI分析ツール",
+    page_title="",
     page_icon="📊",
     layout="wide"
 )
