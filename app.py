@@ -565,7 +565,7 @@ if st.session_state.run_analysis:
                         <div class="metric-label">初見訪問者率</div>
                         <div class="metric-value">{first_time_rate}</div>
                         <div class="metric-caption">（MK平均値：{mk_avg_rate:.1f}% / MK中央値：{mk_median_rate:.1f}%）</div>
-                        <div class="metric-help">合計視聴会員数に対する初ルーム来訪者数の割合です。<br>新規ファン獲得の効率を示します。</div>
+                        <div class="metric-help">合計視聴数に対する初ルーム来訪者数の割合です。</div>
                     </div>
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
@@ -589,7 +589,7 @@ if st.session_state.run_analysis:
                         <div class="metric-label">初コメント率</div>
                         <div class="metric-value">{first_comment_rate}</div>
                         <div class="metric-caption">（MK平均値：{mk_avg_rate_comment:.1f}% / MK中央値：{mk_median_rate_comment:.1f}%）</div>
-                        <div class="metric-help">合計コメント人数に対する初コメント人数の割合です。<br>新規リスナーの参加度合いを示します。</div>
+                        <div class="metric-help">合計コメント人数に対する初コメント会員数の割合です。</div>
                     </div>
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
@@ -612,7 +612,7 @@ if st.session_state.run_analysis:
                         <div class="metric-label">初ギフト率</div>
                         <div class="metric-value">{first_gift_rate}</div>
                         <div class="metric-caption">（MK平均値：{mk_avg_rate_gift:.1f}% / MK中央値：{mk_median_rate_gift:.1f}%）</div>
-                        <div class="metric-help">合計ギフト人数に対する初ギフト人数の割合です。<br>新規ファンの課金状況を示します。</div>
+                        <div class="metric-help">合計ギフト会員数に対する初ギフト会員数の割合です。</div>
                     </div>
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
@@ -635,7 +635,7 @@ if st.session_state.run_analysis:
                         <div class="metric-label">短時間滞在者率</div>
                         <div class="metric-value">{short_stay_rate}</div>
                         <div class="metric-caption">（MK平均値：{mk_avg_rate_short_stay:.1f}% / MK中央値：{mk_median_rate_short_stay:.1f}%）</div>
-                        <div class="metric-help">合計視聴数に対する、短時間しか滞在しなかったユーザーの割合です。</div>
+                        <div class="metric-help">視聴会員数に対する滞在時間が1分未満の会員数の割合です。</div>
                     </div>
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
