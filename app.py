@@ -115,7 +115,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     for col in [
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
         "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
-        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数"
+        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数", "期限あり/期限なしSG人数"
     ]:
         if col in filtered_df.columns:
             filtered_df[col] = pd.to_numeric(filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
@@ -184,6 +184,16 @@ if st.session_state.run_analysis:
             mk_short_stay_df = mksp_df.dropna(subset=['短時間滞在者数', '視聴会員数'])
             st.session_state.mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).mean() * 100 if not mk_short_stay_df.empty else 0
             st.session_state.mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).median() * 100 if not mk_short_stay_df.empty else 0
+            
+            # SGギフト数率
+            mk_sg_point_df = mksp_df.dropna(subset=['期限あり/期限なしSG総額', '獲得支援point'])
+            st.session_state.mk_avg_rate_sg_gift_point = (mk_sg_point_df['期限あり/期限なしSG総額'] / mk_sg_point_df['獲得支援point']).mean() * 100 if not mk_sg_point_df.empty and mk_sg_point_df['獲得支援point'].sum() > 0 else 0
+            st.session_state.mk_median_rate_sg_gift_point = (mk_sg_point_df['期限あり/期限なしSG総額'] / mk_sg_point_df['獲得支援point']).median() * 100 if not mk_sg_point_df.empty and mk_sg_point_df['獲得支援point'].median() > 0 else 0
+            
+            # SGギフト人数率
+            mk_sg_person_df = mksp_df.dropna(subset=['期限あり/期限なしSG人数', 'ギフト人数'])
+            st.session_state.mk_avg_rate_sg_gift_person = (mk_sg_person_df['期限あり/期限なしSG人数'] / mk_sg_person_df['ギフト人数']).mean() * 100 if not mk_sg_person_df.empty else 0
+            st.session_state.mk_median_rate_sg_gift_person = (mk_sg_person_df['期限あり/期限なしSG人数'] / mk_sg_person_df['ギフト人数']).median() * 100 if not mk_sg_person_df.empty else 0
 
         # ライバー個別のデータ読み込み
         df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
@@ -553,7 +563,8 @@ if st.session_state.run_analysis:
 
                 st.subheader("📊 その他数値分析")
                 
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3 = st.columns(3)
+                col4, col5, col6 = st.columns(3)
                 
                 # 初見訪問者率
                 with col1:
@@ -655,6 +666,43 @@ if st.session_state.run_analysis:
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
                     st.markdown("---")
+
+                # SGギフト数率
+                with col5:
+                    sg_point_df = df_display.dropna(subset=['期限あり/期限なしSG総額', '獲得支援point'])
+                    total_support_points_for_sg = sg_point_df["獲得支援point"].sum()
+                    sg_gift_points = sg_point_df["期限あり/期限なしSG総額"].sum()
+                    sg_gift_point_rate = f"{sg_gift_points / total_support_points_for_sg * 100:.1f}%" if total_support_points_for_sg > 0 else "0%"
+                    
+                    metric_html = f"""
+                    <div class="stMetric-container">
+                        <div class="metric-label">SGギフト数率</div>
+                        <div class="metric-value">{sg_gift_point_rate}</div>
+                        <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_sg_gift_point:.1f}% / MK中央値：{st.session_state.mk_median_rate_sg_gift_point:.1f}%）</div>
+                        <div class="metric-help">ギフト総数に対するSGギフト数の割合です。</div>
+                    </div>
+                    """
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                    st.markdown("---")
+
+                # SGギフト人数率
+                with col6:
+                    sg_person_df = df_display.dropna(subset=['期限あり/期限なしSG人数', 'ギフト人数'])
+                    total_gifters_for_sg = sg_person_df["ギフト人数"].sum()
+                    sg_gift_persons = sg_person_df["期限あり/期限なしSG人数"].sum()
+                    sg_gift_person_rate = f"{sg_gift_persons / total_gifters_for_sg * 100:.1f}%" if total_gifters_for_sg > 0 else "0%"
+                    
+                    metric_html = f"""
+                    <div class="stMetric-container">
+                        <div class="metric-label">SGギフト人数率</div>
+                        <div class="metric-value">{sg_gift_person_rate}</div>
+                        <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_sg_gift_person:.1f}% / MK中央値：{st.session_state.mk_median_rate_sg_gift_person:.1f}%）</div>
+                        <div class="metric-help">ギフト人数総数に対するSGギフト人数の割合です。</div>
+                    </div>
+                    """
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                    st.markdown("---")
+
 
                 st.subheader("📝 全体サマリー")
                 total_support_points = int(df_display["獲得支援point"].sum())
