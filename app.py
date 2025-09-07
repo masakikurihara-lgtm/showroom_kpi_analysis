@@ -115,8 +115,9 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     for col in [
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
         "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
-        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
-        "期限あり/期限なしSGギフティング数", "期限あり/期限なしSGのギフティング人数"
+        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", 
+        "配信時間(分)", "短時間滞在者数", "期限あり/期限なしSGのギフティング数", 
+        "期限あり/期限なしSGのギフティング人数"
     ]:
         if col in filtered_df.columns:
             filtered_df[col] = pd.to_numeric(filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
@@ -168,33 +169,33 @@ if st.session_state.run_analysis:
             # MK平均値と中央値を計算してセッションステートに保存
             # 初見訪問者率
             mk_first_time_df = mksp_df.dropna(subset=['初ルーム来訪者数', '合計視聴数'])
-            st.session_state.mk_avg_rate_visit = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).mean() * 100 if not mk_first_time_df.empty and mk_first_time_df['合計視聴数'].sum() > 0 else 0
-            st.session_state.mk_median_rate_visit = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).median() * 100 if not mk_first_time_df.empty and mk_first_time_df['合計視聴数'].sum() > 0 else 0
+            st.session_state.mk_avg_rate_visit = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).mean() * 100 if not mk_first_time_df.empty else 0
+            st.session_state.mk_median_rate_visit = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).median() * 100 if not mk_first_time_df.empty else 0
 
             # 初コメント率
             mk_comment_df = mksp_df.dropna(subset=['初コメント人数', 'コメント人数'])
-            st.session_state.mk_avg_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).mean() * 100 if not mk_comment_df.empty and mk_comment_df['コメント人数'].sum() > 0 else 0
-            st.session_state.mk_median_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).median() * 100 if not mk_comment_df.empty and mk_comment_df['コメント人数'].sum() > 0 else 0
+            st.session_state.mk_avg_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).mean() * 100 if not mk_comment_df.empty else 0
+            st.session_state.mk_median_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).median() * 100 if not mk_comment_df.empty else 0
             
             # 初ギフト率
             mk_gift_df = mksp_df.dropna(subset=['初ギフト人数', 'ギフト人数'])
-            st.session_state.mk_avg_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).mean() * 100 if not mk_gift_df.empty and mk_gift_df['ギフト人数'].sum() > 0 else 0
-            st.session_state.mk_median_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).median() * 100 if not mk_gift_df.empty and mk_gift_df['ギフト人数'].sum() > 0 else 0
+            st.session_state.mk_avg_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).mean() * 100 if not mk_gift_df.empty else 0
+            st.session_state.mk_median_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).median() * 100 if not mk_gift_df.empty else 0
             
             # 短時間滞在者率
             mk_short_stay_df = mksp_df.dropna(subset=['短時間滞在者数', '視聴会員数'])
-            st.session_state.mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).mean() * 100 if not mk_short_stay_df.empty and mk_short_stay_df['視聴会員数'].sum() > 0 else 0
-            st.session_state.mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).median() * 100 if not mk_short_stay_df.empty and mk_short_stay_df['視聴会員数'].sum() > 0 else 0
+            st.session_state.mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).mean() * 100 if not mk_short_stay_df.empty else 0
+            st.session_state.mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).median() * 100 if not mk_short_stay_df.empty else 0
 
             # SGギフト数率
-            mk_sg_gift_df = mksp_df.dropna(subset=['期限あり/期限なしSGギフティング数', 'ギフト数'])
-            st.session_state.mk_avg_rate_sg_gift = (mk_sg_gift_df['期限あり/期限なしSGギフティング数'] / mk_sg_gift_df['ギフト数']).mean() * 100 if not mk_sg_gift_df.empty and mk_sg_gift_df['ギフト数'].sum() > 0 else 0
-            st.session_state.mk_median_rate_sg_gift = (mk_sg_gift_df['期限あり/期限なしSGギフティング数'] / mk_sg_gift_df['ギフト数']).median() * 100 if not mk_sg_gift_df.empty and mk_sg_gift_df['ギフト数'].sum() > 0 else 0
+            mk_sg_gift_df = mksp_df.dropna(subset=['期限あり/期限なしSGのギフティング数', 'ギフト数'])
+            st.session_state.mk_avg_rate_sg_gift = (mk_sg_gift_df['期限あり/期限なしSGのギフティング数'] / mk_sg_gift_df['ギフト数']).mean() * 100 if not mk_sg_gift_df.empty else 0
+            st.session_state.mk_median_rate_sg_gift = (mk_sg_gift_df['期限あり/期限なしSGのギフティング数'] / mk_sg_gift_df['ギフト数']).median() * 100 if not mk_sg_gift_df.empty else 0
 
-            # SGギフト人数率
+            # SGギフト人数率 (エラー箇所の修正)
             mk_sg_person_df = mksp_df.dropna(subset=['期限あり/期限なしSGのギフティング人数', 'ギフト人数'])
-            st.session_state.mk_avg_rate_sg_person = (mk_sg_person_df['期限あり/期限なしSGのギフティング人数'] / mk_sg_person_df['ギフト人数']).mean() * 100 if not mk_sg_person_df.empty and mk_sg_person_df['ギフト人数'].sum() > 0 else 0
-            st.session_state.mk_median_rate_sg_person = (mk_sg_person_df['期限あり/期限なしSGのギフティング人数'] / mk_sg_person_df['ギフト人数']).median() * 100 if not mk_sg_person_df.empty and mk_sg_person_df['ギフト人数'].sum() > 0 else 0
+            st.session_state.mk_avg_rate_sg_person = (mk_sg_person_df['期限あり/期限なしSGのギフティング人数'] / mk_sg_person_df['ギフト人数']).mean() * 100 if not mk_sg_person_df.empty else 0
+            st.session_state.mk_median_rate_sg_person = (mk_sg_person_df['期限あり/期限なしSGのギフティング人数'] / mk_sg_person_df['ギフト人数']).median() * 100 if not mk_sg_person_df.empty else 0
 
         # ライバー個別のデータ読み込み
         df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
@@ -418,8 +419,9 @@ if st.session_state.run_analysis:
                 }).reset_index()
 
                 time_of_day_order = [
-                    "深夜 (0-3時)", "早朝 (3-6時)", "午前 (9-12時)", "昼 (12-15時)", 
-                    "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"
+                    "深夜 (0-3時)", "早朝 (3-6時)", "午前 (9-12時)", 
+                    "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
+                    "夜ピーク (21-22時)", "夜後半 (22-24時)"
                 ]
                 time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
@@ -563,6 +565,7 @@ if st.session_state.run_analysis:
 
                 st.subheader("📊 その他数値分析")
                 
+                # レイアウト変更：3列1段目
                 col1, col2, col3 = st.columns(3)
                 
                 # 初見訪問者率
@@ -646,9 +649,10 @@ if st.session_state.run_analysis:
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
                     st.markdown("---")
-                
-                col4, col5, col6 = st.columns(3)
 
+                # レイアウト変更：3列2段目
+                col4, col5, col6 = st.columns(3)
+                
                 # 短時間滞在者率
                 with col4:
                     short_stay_df = df_display.dropna(subset=['短時間滞在者数', '視聴会員数'])
@@ -666,13 +670,13 @@ if st.session_state.run_analysis:
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
                     st.markdown("---")
-                
-                # SGギフト数率
+
+                # SGギフト数率 (新規追加)
                 with col5:
-                    sg_gift_df = df_display.dropna(subset=['期限あり/期限なしSGギフティング数', 'ギフト数'])
-                    total_gifts_for_sg = sg_gift_df["ギフト数"].sum()
-                    sg_gifts = sg_gift_df["期限あり/期限なしSGギフティング数"].sum()
-                    sg_gift_rate = f"{sg_gifts / total_gifts_for_sg * 100:.1f}%" if total_gifts_for_sg > 0 else "0%"
+                    sg_gift_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング数', 'ギフト数'])
+                    total_gifts = sg_gift_df["ギフト数"].sum()
+                    total_sg_gifts = sg_gift_df["期限あり/期限なしSGのギフティング数"].sum()
+                    sg_gift_rate = f"{total_sg_gifts / total_gifts * 100:.1f}%" if total_gifts > 0 else "0%"
 
                     metric_html = f"""
                     <div class="stMetric-container">
@@ -685,12 +689,12 @@ if st.session_state.run_analysis:
                     st.markdown(metric_html, unsafe_allow_html=True)
                     st.markdown("---")
 
-                # SGギフト人数率
+                # SGギフト人数率 (新規追加)
                 with col6:
                     sg_person_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング人数', 'ギフト人数'])
-                    total_gifters_for_sg = sg_person_df["ギフト人数"].sum()
-                    sg_persons = sg_person_df["期限あり/期限なしSGのギフティング人数"].sum()
-                    sg_person_rate = f"{sg_persons / total_gifters_for_sg * 100:.1f}%" if total_gifters_for_sg > 0 else "0%"
+                    total_gift_people = sg_person_df["ギフト人数"].sum()
+                    total_sg_people = sg_person_df["期限あり/期限なしSGのギフティング人数"].sum()
+                    sg_person_rate = f"{total_sg_people / total_gift_people * 100:.1f}%" if total_gift_people > 0 else "0%"
 
                     metric_html = f"""
                     <div class="stMetric-container">
