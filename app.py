@@ -189,7 +189,6 @@ if st.session_state.run_analysis:
             st.session_state.mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).mean() * 100 if not mk_short_stay_df.empty else 0
             st.session_state.mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).median() * 100 if not mk_short_stay_df.empty else 0
             
-            # --- ここから追加 ---
             # SGギフト数率
             mk_sg_gift_df = mksp_df.dropna(subset=['期限あり/期限なしSGのギフティング数', 'ギフト数'])
             st.session_state.mk_avg_rate_sg_gift = (mk_sg_gift_df['期限あり/期限なしSGのギフティング数'] / mk_sg_gift_df['ギフト数']).mean() * 100 if not mk_sg_gift_df.empty else 0
@@ -199,7 +198,6 @@ if st.session_state.run_analysis:
             mk_sg_person_df = mksp_df.dropna(subset=['期限あり/期限なしSGのギフティング人数', 'ギフト人数'])
             st.session_state.mk_avg_rate_sg_person = (mk_sg_person_df['期限あり/期限なしSGのギフティング人数'] / mk_sg_person_df['ギフト人数']).mean() * 100 if not mk_sg_person_df.empty else 0
             st.session_state.mk_median_rate_sg_person = (mk_sg_person_df['期限あり/期限なしSGのギフティング人数'] / mk_sg_person_df['ギフト人数']).median() * 100 if not mk_sg_person_df.empty else 0
-            # --- ここまで追加 ---
 
         # ライバー個別のデータ読み込み
         df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
@@ -674,7 +672,6 @@ if st.session_state.run_analysis:
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
                     
-                # --- ここから追加 ---
                 # SGギフト数率
                 with row2_col2:
                     sg_gift_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング数', 'ギフト数'])
@@ -708,15 +705,74 @@ if st.session_state.run_analysis:
                     </div>
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
-                # --- ここまで追加 ---
 
                 st.markdown("<hr>", unsafe_allow_html=True) # 区切り線を追加
+
+                # --- 「ヒット配信」セクションの追加 ---
+                st.subheader("🎯 ヒット配信")
+                st.info("特定の条件を満たしたパフォーマンスの高い配信をピックアップしています。")
+
+                # ヒット条件のための平均値を計算
+                avg_support_points = df_display["獲得支援point"].mean()
+                avg_sg_total = df_display["期限あり/期限なしSG総額"].mean()
+                avg_sg_gifters = df_display["期限あり/期限なしSGのギフティング人数"].mean()
+                avg_gifters = df_display["ギフト人数"].mean()
+                avg_commenters = df_display["コメント人数"].mean()
+
+                hit_broadcasts = []
+
+                for index, row in df_display.iterrows():
+                    hit_items = []
+                    
+                    # 条件①: 初見訪問者率 >= 10%
+                    if '初ルーム来訪者数' in row and '合計視聴数' in row and pd.notna(row['初ルーム来訪者数']) and row['合計視聴数'] > 0 and (row['初ルーム来訪者数'] / row['合計視聴数']) >= 0.10:
+                        hit_items.append('初見訪問者率')
+                    # 条件②: 初コメント率 >= 8%
+                    if '初コメント人数' in row and 'コメント人数' in row and pd.notna(row['初コメント人数']) and row['コメント人数'] > 0 and (row['初コメント人数'] / row['コメント人数']) >= 0.08:
+                        hit_items.append('初コメント率')
+                    # 条件③: 初ギフト率 >= 10%
+                    if '初ギフト人数' in row and 'ギフト人数' in row and pd.notna(row['初ギフト人数']) and row['ギフト人数'] > 0 and (row['初ギフト人数'] / row['ギフト人数']) >= 0.10:
+                        hit_items.append('初ギフト率')
+                    # 条件④: 短時間滞在者率 <= 20%
+                    if '短時間滞在者数' in row and '視聴会員数' in row and pd.notna(row['短時間滞在者数']) and row['視聴会員数'] > 0 and (row['短時間滞在者数'] / row['視聴会員数']) <= 0.20:
+                        hit_items.append('短時間滞在者率')
+                    # 条件⑤: 獲得支援point
+                    if pd.notna(row['獲得支援point']) and row['獲得支援point'] >= avg_support_points * 2.5:
+                        hit_items.append('獲得支援point')
+                    # 条件⑥: SG総額
+                    if '期限あり/期限なしSG総額' in row and pd.notna(row['期限あり/期限なしSG総額']) and row['期限あり/期限なしSG総額'] >= avg_sg_total * 2.5:
+                        hit_items.append('SG総額')
+                    # 条件⑦: SGギフト人数
+                    if '期限あり/期限なしSGのギフティング人数' in row and pd.notna(row['期限あり/期限なしSGのギフティング人数']) and row['期限あり/期限なしSGのギフティング人数'] >= avg_sg_gifters * 2.0:
+                        hit_items.append('SGギフト人数')
+                    # 条件⑧: ギフト人数
+                    if pd.notna(row['ギフト人数']) and row['ギフト人数'] >= avg_gifters * 2.0:
+                        hit_items.append('ギフト人数')
+                    # 条件⑨: コメント人数
+                    if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.0:
+                        hit_items.append('コメント人数')
+
+                    if hit_items:
+                        hit_broadcasts.append({
+                            '配信日時': row['配信日時'],
+                            'ヒット項目': ', '.join(hit_items)
+                        })
+
+                if hit_broadcasts:
+                    hit_df = pd.DataFrame(hit_broadcasts)
+                    st.dataframe(hit_df, hide_index=True, use_container_width=True)
+                else:
+                    st.write("ヒットした配信はありませんでした。")
                 
+                # --- ここまでが「ヒット配信」セクション ---
+
                 st.subheader("📝 全体サマリー")
                 total_support_points = int(df_display["獲得支援point"].sum())
                 if "フォロワー数" in df_display.columns and not df_display.empty:
-                    final_followers = int(df_display["フォロワー数"].iloc[0])
-                    initial_followers = int(df_display["フォロワー数"].iloc[-1])
+                    # データを日付でソートしてから最終と初期を取得
+                    df_sorted_by_date = df_display.sort_values(by="配信日時")
+                    final_followers = int(df_sorted_by_date["フォロワー数"].iloc[-1])
+                    initial_followers = int(df_sorted_by_date["フォロワー数"].iloc[0])
                     total_follower_increase = final_followers - initial_followers
                     st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
                     st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
@@ -725,15 +781,21 @@ if st.session_state.run_analysis:
 
                 
                 st.subheader("💡 今後の戦略的示唆")
-                avg_support_per_viewer = (df_display["獲得支援point"] / df_display["視聴会員数"]).mean()
-                avg_comments_per_viewer = (df_display["コメント人数"] / df_display["視聴会員数"]).mean()
-                
-                if avg_support_per_viewer > 50:
-                    st.markdown("👉 視聴会員数あたりの獲得支援ポイントが高い傾向にあります。熱心なファン層が定着しているようです。")
-                else:
-                    st.markdown("👉 視聴会員数あたりの獲得支援ポイントがやや低い傾向にあります。新規リスナーやライト層へのアプローチを強化し、課金を促す工夫を検討しましょう。")
+                # 視聴会員数が0の場合を考慮
+                df_filtered_viewers = df_display[df_display['視聴会員数'] > 0]
+                if not df_filtered_viewers.empty:
+                    avg_support_per_viewer = (df_filtered_viewers["獲得支援point"] / df_filtered_viewers["視聴会員数"]).mean()
+                    avg_comments_per_viewer = (df_filtered_viewers["コメント人数"] / df_filtered_viewers["視聴会員数"]).mean()
 
-                if avg_comments_per_viewer > 0.1:
-                    st.markdown("👉 視聴会員数に対するコメント人数が多いです。積極的にコミュニケーションを取れており、参加型の配信が成功しています。")
+                    if avg_support_per_viewer > 50:
+                        st.markdown("👉 視聴会員数あたりの獲得支援ポイントが高い傾向にあります。熱心なファン層が定着しているようです。")
+                    else:
+                        st.markdown("👉 視聴会員数あたりの獲得支援ポイントがやや低い傾向にあります。新規リスナーやライト層へのアプローチを強化し、課金を促す工夫を検討しましょう。")
+
+                    if avg_comments_per_viewer > 0.1:
+                        st.markdown("👉 視聴会員数に対するコメント人数が多いです。積極的にコミュニケーションを取れており、参加型の配信が成功しています。")
+                    else:
+                        st.markdown("👉 視聴会員数に対するコメント人数が少ないです。リスナーがコメントしやすいような質問を投げかけたり、イベントを活用してコメントを促す工夫を検討しましょう。")
                 else:
-                    st.markdown("👉 視聴会員数に対するコメント人数が少ないです。リスナーがコメントしやすいような質問を投げかけたり、イベントを活用してコメントを促す工夫を検討しましょう。")
+                    st.markdown("👉 視聴データが不足しているため、戦略的示唆は表示できません。")
+
