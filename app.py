@@ -653,10 +653,11 @@ if st.session_state.run_analysis:
                 total_support_points = int(df_display["獲得支援point"].sum())
                 if "フォロワー数" in df_display.columns and not df_display.empty:
                     total_followers = int(df_display["フォロワー数"].iloc[-1])
-                    initial_followers = int(df_display["フォロワー数"].iloc[0])
-                    total_follower_increase = total_followers - initial_followers
+                    initial_followers = int(df_display["フォロワー数"].iloc[-1])
+                    final_followers = int(df_display["フォロワー数"].iloc[0])
+                    total_follower_increase = final_followers - initial_followers
                     st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
-                    st.markdown(f"**最終フォロワー数:** {total_followers:,} 人")
+                    st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
                 
                 st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
 
