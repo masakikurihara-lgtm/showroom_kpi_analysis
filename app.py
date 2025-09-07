@@ -184,18 +184,6 @@ if st.session_state.run_analysis:
             mk_short_stay_df = mksp_df.dropna(subset=['短時間滞在者数', '視聴会員数'])
             st.session_state.mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).mean() * 100 if not mk_short_stay_df.empty else 0
             st.session_state.mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).median() * 100 if not mk_short_stay_df.empty else 0
-            
-            # SGギフト数率
-            # 修正箇所: '期限あり/期限なしSG総数' -> '期限あり/期限なしSG総額'
-            mk_sg_gift_df = mksp_df.dropna(subset=['ギフト数', '期限あり/期限なしSG総額', '期限あり/期限なしSG人数'])
-            st.session_state.mk_avg_rate_sg_gift_count = (mk_sg_gift_df['期限あり/期限なしSG総額'] / mk_sg_gift_df['ギフト数']).mean() * 100 if not mk_sg_gift_df.empty else 0
-            st.session_state.mk_median_rate_sg_gift_count = (mk_sg_gift_df['期限あり/期限なしSG総額'] / mk_sg_gift_df['ギフト数']).median() * 100 if not mk_sg_gift_df.empty else 0
-
-            # SGギフト人数率
-            mk_sg_gift_person_df = mksp_df.dropna(subset=['ギフト人数', '期限あり/期限なしSG総額', '期限あり/期限なしSG人数'])
-            st.session_state.mk_avg_rate_sg_gift_person = (mk_sg_gift_person_df['期限あり/期限なしSG人数'] / mk_sg_gift_person_df['ギフト人数']).mean() * 100 if not mk_sg_gift_person_df.empty else 0
-            st.session_state.mk_median_rate_sg_gift_person = (mk_sg_gift_person_df['期限あり/期限なしSG人数'] / mk_sg_gift_person_df['ギフト人数']).median() * 100 if not mk_sg_gift_person_df.empty else 0
-
 
         # ライバー個別のデータ読み込み
         df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
@@ -565,8 +553,7 @@ if st.session_state.run_analysis:
 
                 st.subheader("📊 その他数値分析")
                 
-                col1, col2, col3 = st.columns(3)
-                col4, col5, col6 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 
                 # 初見訪問者率
                 with col1:
@@ -591,7 +578,6 @@ if st.session_state.run_analysis:
                             font-size: 32px;
                             font-weight: bold;
                             color: #1f77b4;
-                            margin-bottom: -5px;
                         }}
                         .metric-caption {{
                             font-size: 12px;
@@ -669,40 +655,29 @@ if st.session_state.run_analysis:
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
                     st.markdown("---")
+
+                st.subheader("📝 全体サマリー")
+                total_support_points = int(df_display["獲得支援point"].sum())
+                if "フォロワー数" in df_display.columns and not df_display.empty:
+                    final_followers = int(df_display["フォロワー数"].iloc[0])
+                    initial_followers = int(df_display["フォロワー数"].iloc[-1])
+                    total_follower_increase = final_followers - initial_followers
+                    st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
+                    st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
                 
-                # SGギフト数率
-                with col5:
-                    # 修正箇所: '期限あり/期限なしSG総数' -> '期限あり/期限なしSG総額'
-                    sg_gift_df = df_display.dropna(subset=['ギフト数', '期限あり/期限なしSG総額'])
-                    total_gifts = sg_gift_df["ギフト数"].sum()
-                    sg_gifts = sg_gift_df["期限あり/期限なしSG総額"].sum()
-                    sg_gift_count_rate = f"{sg_gifts / total_gifts * 100:.1f}%" if total_gifts > 0 else "0%"
-                    
-                    metric_html = f"""
-                    <div class="stMetric-container">
-                        <div class="metric-label">SGギフト数率</div>
-                        <div class="metric-value">{sg_gift_count_rate}</div>
-                        <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_sg_gift_count:.1f}% / MK中央値：{st.session_state.mk_median_rate_sg_gift_count:.1f}%）</div>
-                        <div class="metric-help">ギフト総数に対するSGギフト数の割合です。</div>
-                    </div>
-                    """
-                    st.markdown(metric_html, unsafe_allow_html=True)
-                    st.markdown("---")
-                    
-                # SGギフト人数率
-                with col6:
-                    sg_gift_person_df = df_display.dropna(subset=['ギフト人数', '期限あり/期限なしSG人数'])
-                    total_gift_persons = sg_gift_person_df["ギフト人数"].sum()
-                    sg_gift_persons = sg_gift_person_df["期限あり/期限なしSG人数"].sum()
-                    sg_gift_person_rate = f"{sg_gift_persons / total_gift_persons * 100:.1f}%" if total_gift_persons > 0 else "0%"
-                    
-                    metric_html = f"""
-                    <div class="stMetric-container">
-                        <div class="metric-label">SGギフト人数率</div>
-                        <div class="metric-value">{sg_gift_person_rate}</div>
-                        <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_sg_gift_person:.1f}% / MK中央値：{st.session_state.mk_median_rate_sg_gift_person:.1f}%）</div>
-                        <div class="metric-help">ギフト人数総数に対するSGギフト人数の割合です。</div>
-                    </div>
-                    """
-                    st.markdown(metric_html, unsafe_allow_html=True)
-                    st.markdown("---")
+                st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
+
+                
+                st.subheader("💡 今後の戦略的示唆")
+                avg_support_per_viewer = (df_display["獲得支援point"] / df_display["視聴会員数"]).mean()
+                avg_comments_per_viewer = (df_display["コメント人数"] / df_display["視聴会員数"]).mean()
+                
+                if avg_support_per_viewer > 50:
+                    st.markdown("👉 視聴会員数あたりの獲得支援ポイントが高い傾向にあります。熱心なファン層が定着しているようです。")
+                else:
+                    st.markdown("👉 視聴会員数あたりの獲得支援ポイントがやや低い傾向にあります。新規リスナーやライト層へのアプローチを強化し、課金を促す工夫を検討しましょう。")
+
+                if avg_comments_per_viewer > 0.1:
+                    st.markdown("👉 視聴会員数に対するコメント人数が多いです。積極的にコミュニケーションを取れており、参加型の配信が成功しています。")
+                else:
+                    st.markdown("👉 視聴会員数に対するコメント人数が少ないです。リスナーがコメントしやすいような質問を投げかけたり、イベントを活用してコメントを促す工夫を検討しましょう。")
