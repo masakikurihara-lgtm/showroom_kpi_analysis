@@ -159,6 +159,33 @@ if st.session_state.run_analysis:
     if len(selected_date_range) == 2:
         start_date = selected_date_range[0]
         end_date = selected_date_range[1]
+        
+        # 全体（mksp）のデータを最初に読み込み、計算を一度だけ行う
+        mksp_df, _ = load_and_preprocess_data("mksp", start_date, end_date)
+
+        if mksp_df is not None and not mksp_df.empty:
+            # MK平均値と中央値を計算してセッションステートに保存
+            # 初見訪問者率
+            mk_first_time_df = mksp_df.dropna(subset=['初ルーム来訪者数', '合計視聴数'])
+            st.session_state.mk_avg_rate_visit = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).mean() * 100 if not mk_first_time_df.empty else 0
+            st.session_state.mk_median_rate_visit = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).median() * 100 if not mk_first_time_df.empty else 0
+
+            # 初コメント率
+            mk_comment_df = mksp_df.dropna(subset=['初コメント人数', 'コメント人数'])
+            st.session_state.mk_avg_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).mean() * 100 if not mk_comment_df.empty else 0
+            st.session_state.mk_median_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).median() * 100 if not mk_comment_df.empty else 0
+            
+            # 初ギフト率
+            mk_gift_df = mksp_df.dropna(subset=['初ギフト人数', 'ギフト人数'])
+            st.session_state.mk_avg_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).mean() * 100 if not mk_gift_df.empty else 0
+            st.session_state.mk_median_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).median() * 100 if not mk_gift_df.empty else 0
+            
+            # 短時間滞在者率
+            mk_short_stay_df = mksp_df.dropna(subset=['短時間滞在者数', '視聴会員数'])
+            st.session_state.mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).mean() * 100 if not mk_short_stay_df.empty else 0
+            st.session_state.mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).median() * 100 if not mk_short_stay_df.empty else 0
+
+        # ライバー個別のデータ読み込み
         df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
         
         if df is not None and not df.empty:
@@ -326,7 +353,7 @@ if st.session_state.run_analysis:
                         margin=dict(t=50, b=0, l=40, r=40)
                     )
                     st.plotly_chart(fig6, use_container_width=True)
-            
+                
             else: # 個別アカウントIDの場合
                 st.subheader("📈 主要KPIの推移")
                 df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
@@ -535,11 +562,6 @@ if st.session_state.run_analysis:
                     first_time_visitors = first_time_df["初ルーム来訪者数"].sum()
                     first_time_rate = f"{first_time_visitors / total_members_for_first_time * 100:.1f}%" if total_members_for_first_time > 0 else "0%"
                     
-                    # MK平均値と中央値
-                    mk_first_time_df = df.dropna(subset=['初ルーム来訪者数', '合計視聴数'])
-                    mk_avg_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).mean() * 100 if not mk_first_time_df.empty else 0
-                    mk_median_rate = (mk_first_time_df['初ルーム来訪者数'] / mk_first_time_df['合計視聴数']).median() * 100 if not mk_first_time_df.empty else 0
-                    
                     metric_html = f"""
                     <style>
                         .stMetric-container {{
@@ -572,7 +594,7 @@ if st.session_state.run_analysis:
                     <div class="stMetric-container">
                         <div class="metric-label">初見訪問者率</div>
                         <div class="metric-value">{first_time_rate}</div>
-                        <div class="metric-caption">（MK平均値：{mk_avg_rate:.1f}% / MK中央値：{mk_median_rate:.1f}%）</div>
+                        <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_visit:.1f}% / MK中央値：{st.session_state.mk_median_rate_visit:.1f}%）</div>
                         <div class="metric-help">合計視聴数に対する初ルーム来訪者数の割合です。</div>
                     </div>
                     """
@@ -587,16 +609,11 @@ if st.session_state.run_analysis:
                     first_time_commenters = comment_df["初コメント人数"].sum()
                     first_comment_rate = f"{first_time_commenters / total_commenters * 100:.1f}%" if total_commenters > 0 else "0%"
                     
-                    # MK平均値と中央値
-                    mk_comment_df = df.dropna(subset=['初コメント人数', 'コメント人数'])
-                    mk_avg_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).mean() * 100 if not mk_comment_df.empty else 0
-                    mk_median_rate_comment = (mk_comment_df['初コメント人数'] / mk_comment_df['コメント人数']).median() * 100 if not mk_comment_df.empty else 0
-
                     metric_html = f"""
                     <div class="stMetric-container">
                         <div class="metric-label">初コメント率</div>
                         <div class="metric-value">{first_comment_rate}</div>
-                        <div class="metric-caption">（MK平均値：{mk_avg_rate_comment:.1f}% / MK中央値：{mk_median_rate_comment:.1f}%）</div>
+                        <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_comment:.1f}% / MK中央値：{st.session_state.mk_median_rate_comment:.1f}%）</div>
                         <div class="metric-help">合計コメント人数に対する初コメント会員数の割合です。</div>
                     </div>
                     """
@@ -610,16 +627,11 @@ if st.session_state.run_analysis:
                     first_time_gifters = gift_df["初ギフト人数"].sum()
                     first_gift_rate = f"{first_time_gifters / total_gifters * 100:.1f}%" if total_gifters > 0 else "0%"
                     
-                    # MK平均値と中央値
-                    mk_gift_df = df.dropna(subset=['初ギフト人数', 'ギフト人数'])
-                    mk_avg_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).mean() * 100 if not mk_gift_df.empty else 0
-                    mk_median_rate_gift = (mk_gift_df['初ギフト人数'] / mk_gift_df['ギフト人数']).median() * 100 if not mk_gift_df.empty else 0
-                    
                     metric_html = f"""
                     <div class="stMetric-container">
                         <div class="metric-label">初ギフト率</div>
                         <div class="metric-value">{first_gift_rate}</div>
-                        <div class="metric-caption">（MK平均値：{mk_avg_rate_gift:.1f}% / MK中央値：{mk_median_rate_gift:.1f}%）</div>
+                        <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_gift:.1f}% / MK中央値：{st.session_state.mk_median_rate_gift:.1f}%）</div>
                         <div class="metric-help">合計ギフト会員数に対する初ギフト会員数の割合です。</div>
                     </div>
                     """
@@ -633,16 +645,11 @@ if st.session_state.run_analysis:
                     short_stay_visitors = short_stay_df["短時間滞在者数"].sum()
                     short_stay_rate = f"{short_stay_visitors / total_viewers_for_short_stay * 100:.1f}%" if total_viewers_for_short_stay > 0 else "0%"
                     
-                    # MK平均値と中央値
-                    mk_short_stay_df = df.dropna(subset=['短時間滞在者数', '視聴会員数'])
-                    mk_avg_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).mean() * 100 if not mk_short_stay_df.empty else 0
-                    mk_median_rate_short_stay = (mk_short_stay_df['短時間滞在者数'] / mk_short_stay_df['視聴会員数']).median() * 100 if not mk_short_stay_df.empty else 0
-
                     metric_html = f"""
                     <div class="stMetric-container">
                         <div class="metric-label">短時間滞在者率</div>
                         <div class="metric-value">{short_stay_rate}</div>
-                        <div class="metric-caption">（MK平均値：{mk_avg_rate_short_stay:.1f}% / MK中央値：{mk_median_rate_short_stay:.1f}%）</div>
+                        <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_short_stay:.1f}% / MK中央値：{st.session_state.mk_median_rate_short_stay:.1f}%）</div>
                         <div class="metric-help">視聴会員数に対する滞在時間が1分未満の会員数の割合です。</div>
                     </div>
                     """
@@ -652,9 +659,8 @@ if st.session_state.run_analysis:
                 st.subheader("📝 全体サマリー")
                 total_support_points = int(df_display["獲得支援point"].sum())
                 if "フォロワー数" in df_display.columns and not df_display.empty:
-                    total_followers = int(df_display["フォロワー数"].iloc[-1])
-                    initial_followers = int(df_display["フォロワー数"].iloc[-1])
                     final_followers = int(df_display["フォロワー数"].iloc[0])
+                    initial_followers = int(df_display["フォロワー数"].iloc[-1])
                     total_follower_increase = final_followers - initial_followers
                     st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
                     st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
