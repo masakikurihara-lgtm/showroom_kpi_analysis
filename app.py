@@ -152,6 +152,47 @@ def categorize_time_of_day_with_range(hour):
     else:
         return "深夜 (0-3時)"
 
+# --- ここから追加 ---
+@st.cache_data
+def fetch_event_data():
+    """イベントデータをCSVから読み込み、キャッシュする"""
+    try:
+        event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
+        event_df = pd.read_csv(event_url, dtype={'アカウントID': str})
+        event_df['開始日時'] = pd.to_datetime(event_df['開始日時'], errors='coerce')
+        event_df['終了日時'] = pd.to_datetime(event_df['終了日時'], errors='coerce')
+        event_df_filtered = event_df[(event_df['紐付け'] == '○') & event_df['開始日時'].notna() & event_df['終了日時'].notna()].copy()
+        event_df_filtered = event_df_filtered.sort_values(by='開始日時', ascending=True)
+        return event_df_filtered
+    except Exception as e:
+        st.warning(f"イベント情報の取得に失敗しました: {e}")
+        return pd.DataFrame()
+
+def merge_event_data(df_to_merge, event_df):
+    """配信データにイベント名をマージする"""
+    if event_df.empty:
+        df_to_merge['イベント名'] = ""
+        return df_to_merge
+
+    def find_event_name(row):
+        account_id = str(row['アカウントID'])
+        stream_time = row['配信日時']
+        
+        matching_events = event_df[
+            (event_df['アカウントID'] == account_id) &
+            (event_df['開始日時'] <= stream_time) &
+            (event_df['終了日時'] >= stream_time)
+        ]
+        
+        if not matching_events.empty:
+            return matching_events.iloc[0]['イベント名']
+        return ""
+
+    df_to_merge['イベント名'] = df_to_merge.apply(find_event_name, axis=1)
+    return df_to_merge
+# --- ここまで追加 ---
+
+
 # --- メインロジック ---
 if st.button("分析を実行"):
     st.session_state.run_analysis = True
@@ -560,14 +601,34 @@ if st.session_state.run_analysis:
                     )
                     st.plotly_chart(fig6, use_container_width=True)
                 
+                # --- ここから変更/追加 ---
                 st.subheader("📝 配信ごとの詳細データ")
                 
-                df_display = df.sort_values(by="配信日時", ascending=False)
+                df_display = df.sort_values(by="配信日時", ascending=False).copy()
+                
+                # イベントデータを取得してマージ
+                event_df_master = fetch_event_data()
+                df_display = merge_event_data(df_display, event_df_master)
+
                 st.dataframe(df_display, hide_index=True)
+                st.caption("※一部イベントのみイベント名に反映しています。")
+                
+                # 「全体サマリー」をここに移動
+                st.subheader("📝 全体サマリー")
+                total_support_points = int(df_display["獲得支援point"].sum())
+                if "フォロワー数" in df_display.columns and not df_display.empty:
+                    df_sorted_by_date = df_display.sort_values(by="配信日時")
+                    if not df_sorted_by_date.empty:
+                        final_followers = int(df_sorted_by_date["フォロワー数"].iloc[-1])
+                        initial_followers = int(df_sorted_by_date["フォロワー数"].iloc[0])
+                        total_follower_increase = final_followers - initial_followers
+                        st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
+                        st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
+                
+                st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
 
                 st.subheader("📊 その他数値分析")
                 
-                # --- レイアウト変更箇所 (3列 x 2行) ---
                 row1_col1, row1_col2, row1_col3 = st.columns(3)
                 row2_col1, row2_col2, row2_col3 = st.columns(3)
                 
@@ -576,143 +637,99 @@ if st.session_state.run_analysis:
                     .stMetric-container {
                         background-color: transparent;
                         border: none;
-                        padding-bottom: 20px; /* 各メトリクスの下にスペースを追加 */
+                        padding-bottom: 20px;
                     }
-                    .metric-label {
-                        font-size: 16px;
-                        font-weight: 600;
-                        color: #000000;
-                        margin-bottom: -5px;
-                    }
-                    .metric-value {
-                        font-size: 32px;
-                        font-weight: bold;
-                        color: #1f77b4;
-                    }
-                    .metric-caption {
-                        font-size: 12px;
-                        color: #a0a0a0;
-                        margin-top: -5px;
-                    }
-                    .metric-help {
-                        font-size: 12px;
-                        color: #808080;
-                        margin-top: 10px;
-                        line-height: 1.5;
-                    }
+                    .metric-label { font-size: 16px; font-weight: 600; color: #000000; margin-bottom: -5px; }
+                    .metric-value { font-size: 32px; font-weight: bold; color: #1f77b4; }
+                    .metric-caption { font-size: 12px; color: #a0a0a0; margin-top: -5px; }
+                    .metric-help { font-size: 12px; color: #808080; margin-top: 10px; line-height: 1.5; }
                 </style>
                 """
                 st.markdown(metric_html_style, unsafe_allow_html=True)
                 
-                # 初見訪問者率
                 with row1_col1:
                     first_time_df = df_display.dropna(subset=['初ルーム来訪者数', '合計視聴数'])
                     total_members_for_first_time = first_time_df["合計視聴数"].sum()
                     first_time_visitors = first_time_df["初ルーム来訪者数"].sum()
                     first_time_rate = f"{first_time_visitors / total_members_for_first_time * 100:.1f}%" if total_members_for_first_time > 0 else "0%"
-                    
                     metric_html = f"""
                     <div class="stMetric-container">
-                        <div class="metric-label">初見訪問者率</div>
-                        <div class="metric-value">{first_time_rate}</div>
+                        <div class="metric-label">初見訪問者率</div><div class="metric-value">{first_time_rate}</div>
                         <div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_visit', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_visit', 0):.1f}%）</div>
                         <div class="metric-help">合計視聴数に対する初ルーム来訪者数の割合です。</div>
-                    </div>
-                    """
+                    </div>"""
                     st.markdown(metric_html, unsafe_allow_html=True)
                 
-                # 初コメント率
                 with row1_col2:
                     comment_df = df_display.dropna(subset=['初コメント人数', 'コメント人数'])
                     total_commenters = comment_df["コメント人数"].sum()
                     first_time_commenters = comment_df["初コメント人数"].sum()
                     first_comment_rate = f"{first_time_commenters / total_commenters * 100:.1f}%" if total_commenters > 0 else "0%"
-                    
                     metric_html = f"""
                     <div class="stMetric-container">
-                        <div class="metric-label">初コメント率</div>
-                        <div class="metric-value">{first_comment_rate}</div>
+                        <div class="metric-label">初コメント率</div><div class="metric-value">{first_comment_rate}</div>
                         <div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_comment', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_comment', 0):.1f}%）</div>
                         <div class="metric-help">合計コメント人数に対する初コメント会員数の割合です。</div>
-                    </div>
-                    """
+                    </div>"""
                     st.markdown(metric_html, unsafe_allow_html=True)
 
-                # 初ギフト率
                 with row1_col3:
                     gift_df = df_display.dropna(subset=['初ギフト人数', 'ギフト人数'])
                     total_gifters = gift_df["ギフト人数"].sum()
                     first_time_gifters = gift_df["初ギフト人数"].sum()
                     first_gift_rate = f"{first_time_gifters / total_gifters * 100:.1f}%" if total_gifters > 0 else "0%"
-                    
                     metric_html = f"""
                     <div class="stMetric-container">
-                        <div class="metric-label">初ギフト率</div>
-                        <div class="metric-value">{first_gift_rate}</div>
+                        <div class="metric-label">初ギフト率</div><div class="metric-value">{first_gift_rate}</div>
                         <div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_gift', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_gift', 0):.1f}%）</div>
                         <div class="metric-help">合計ギフト会員数に対する初ギフト会員数の割合です。</div>
-                    </div>
-                    """
+                    </div>"""
                     st.markdown(metric_html, unsafe_allow_html=True)
 
-                # 短時間滞在者率
                 with row2_col1:
                     short_stay_df = df_display.dropna(subset=['短時間滞在者数', '視聴会員数'])
                     total_viewers_for_short_stay = short_stay_df["視聴会員数"].sum()
                     short_stay_visitors = short_stay_df["短時間滞在者数"].sum()
                     short_stay_rate = f"{short_stay_visitors / total_viewers_for_short_stay * 100:.1f}%" if total_viewers_for_short_stay > 0 else "0%"
-                    
                     metric_html = f"""
                     <div class="stMetric-container">
-                        <div class="metric-label">短時間滞在者率</div>
-                        <div class="metric-value">{short_stay_rate}</div>
+                        <div class="metric-label">短時間滞在者率</div><div class="metric-value">{short_stay_rate}</div>
                         <div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_short_stay', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_short_stay', 0):.1f}%）</div>
                         <div class="metric-help">視聴会員数に対する滞在時間が1分未満の会員数の割合です。</div>
-                    </div>
-                    """
+                    </div>"""
                     st.markdown(metric_html, unsafe_allow_html=True)
                     
-                # SGギフト数率
                 with row2_col2:
                     sg_gift_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング数', 'ギフト数'])
                     total_gifts = sg_gift_df["ギフト数"].sum()
                     total_sg_gifts = sg_gift_df["期限あり/期限なしSGのギフティング数"].sum()
                     sg_gift_rate = f"{total_sg_gifts / total_gifts * 100:.1f}%" if total_gifts > 0 else "0%"
-                    
                     metric_html = f"""
                     <div class="stMetric-container">
-                        <div class="metric-label">SGギフト数率</div>
-                        <div class="metric-value">{sg_gift_rate}</div>
+                        <div class="metric-label">SGギフト数率</div><div class="metric-value">{sg_gift_rate}</div>
                         <div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_sg_gift', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_sg_gift', 0):.1f}%）</div>
                         <div class="metric-help">ギフト総数に対するSGギフト数の割合です。</div>
-                    </div>
-                    """
+                    </div>"""
                     st.markdown(metric_html, unsafe_allow_html=True)
 
-                # SGギフト人数率
                 with row2_col3:
                     sg_person_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング人数', 'ギフト人数'])
                     total_gifters = sg_person_df["ギフト人数"].sum()
                     total_sg_gifters = sg_person_df["期限あり/期限なしSGのギフティング人数"].sum()
                     sg_person_rate = f"{total_sg_gifters / total_gifters * 100:.1f}%" if total_gifters > 0 else "0%"
-
                     metric_html = f"""
                     <div class="stMetric-container">
-                        <div class="metric-label">SGギフト人数率</div>
-                        <div class="metric-value">{sg_person_rate}</div>
+                        <div class="metric-label">SGギフト人数率</div><div class="metric-value">{sg_person_rate}</div>
                         <div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_sg_person', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_sg_person', 0):.1f}%）</div>
                         <div class="metric-help">ギフト人数総数に対するSGギフト人数の割合です。</div>
-                    </div>
-                    """
+                    </div>"""
                     st.markdown(metric_html, unsafe_allow_html=True)
 
-                st.markdown("<hr>", unsafe_allow_html=True) # 区切り線を追加
+                st.markdown("<hr>", unsafe_allow_html=True)
 
-                # --- 「ヒット配信」セクションの追加 ---
                 st.subheader("🎯 ヒット配信")
                 st.info("特定の条件を満たしたパフォーマンスの高い配信をピックアップしています。")
 
-                # ヒット条件のための平均値を計算
                 avg_support_points = df_display["獲得支援point"].mean()
                 avg_sg_total = df_display["期限あり/期限なしSG総額"].mean()
                 avg_sg_gifters = df_display["期限あり/期限なしSGのギフティング人数"].mean()
@@ -720,82 +737,32 @@ if st.session_state.run_analysis:
                 avg_commenters = df_display["コメント人数"].mean()
 
                 hit_broadcasts = []
-
                 for index, row in df_display.iterrows():
                     hit_items = []
-                    
-                    # 条件①: 初見訪問者率 >= 10%
-                    if '初ルーム来訪者数' in row and '合計視聴数' in row and pd.notna(row['初ルーム来訪者数']) and row['合計視聴数'] > 0 and (row['初ルーム来訪者数'] / row['合計視聴数']) >= 0.10:
-                        hit_items.append('初見訪問者率')
-                    # 条件②: 初コメント率 >= 8%
-                    if '初コメント人数' in row and 'コメント人数' in row and pd.notna(row['初コメント人数']) and row['コメント人数'] > 0 and (row['初コメント人数'] / row['コメント人数']) >= 0.08:
-                        hit_items.append('初コメント率')
-                    # 条件③: 初ギフト率 >= 10%
-                    if '初ギフト人数' in row and 'ギフト人数' in row and pd.notna(row['初ギフト人数']) and row['ギフト人数'] > 0 and (row['初ギフト人数'] / row['ギフト人数']) >= 0.10:
-                        hit_items.append('初ギフト率')
-                    # 条件④: 短時間滞在者率 <= 20%
-                    if '短時間滞在者数' in row and '視聴会員数' in row and pd.notna(row['短時間滞在者数']) and row['視聴会員数'] > 0 and (row['短時間滞在者数'] / row['視聴会員数']) <= 0.20:
-                        hit_items.append('短時間滞在者率')
-                    # 条件⑤: 獲得支援point
-                    if pd.notna(row['獲得支援point']) and row['獲得支援point'] >= avg_support_points * 2.5:
-                        hit_items.append('獲得支援point')
-                    # 条件⑥: SG総額
-                    if '期限あり/期限なしSG総額' in row and pd.notna(row['期限あり/期限なしSG総額']) and row['期限あり/期限なしSG総額'] >= avg_sg_total * 2.5:
-                        hit_items.append('SG総額')
-                    # 条件⑦: SGギフト人数
-                    if '期限あり/期限なしSGのギフティング人数' in row and pd.notna(row['期限あり/期限なしSGのギフティング人数']) and row['期限あり/期限なしSGのギフティング人数'] >= avg_sg_gifters * 2.0:
-                        hit_items.append('SGギフト人数')
-                    # 条件⑧: ギフト人数
-                    if pd.notna(row['ギフト人数']) and row['ギフト人数'] >= avg_gifters * 2.0:
-                        hit_items.append('ギフト人数')
-                    # 条件⑨: コメント人数
-                    if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.0:
-                        hit_items.append('コメント人数')
+                    if pd.notna(row['初ルーム来訪者数']) and row['合計視聴数'] > 0 and (row['初ルーム来訪者数'] / row['合計視聴数']) >= 0.10: hit_items.append('初見訪問者率')
+                    if pd.notna(row['初コメント人数']) and row['コメント人数'] > 0 and (row['初コメント人数'] / row['コメント人数']) >= 0.08: hit_items.append('初コメント率')
+                    if pd.notna(row['初ギフト人数']) and row['ギフト人数'] > 0 and (row['初ギフト人数'] / row['ギフト人数']) >= 0.10: hit_items.append('初ギフト率')
+                    if pd.notna(row['短時間滞在者数']) and row['視聴会員数'] > 0 and (row['短時間滞在者数'] / row['視聴会員数']) <= 0.20: hit_items.append('短時間滞在者率')
+                    if pd.notna(row['獲得支援point']) and row['獲得支援point'] >= avg_support_points * 2.5: hit_items.append('獲得支援point')
+                    if pd.notna(row['期限あり/期限なしSG総額']) and row['期限あり/期限なしSG総額'] >= avg_sg_total * 2.5: hit_items.append('SG総額')
+                    if pd.notna(row['期限あり/期限なしSGのギフティング人数']) and row['期限あり/期限なしSGのギフティング人数'] >= avg_sg_gifters * 2.0: hit_items.append('SGギフト人数')
+                    if pd.notna(row['ギフト人数']) and row['ギフト人数'] >= avg_gifters * 2.0: hit_items.append('ギフト人数')
+                    if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.0: hit_items.append('コメント人数')
 
                     if hit_items:
                         hit_broadcasts.append({
                             '配信日時': row['配信日時'],
-                            'ヒット項目': ', '.join(hit_items)
+                            'ヒット項目': ', '.join(hit_items),
+                            'イベント名': row['イベント名']
                         })
 
                 if hit_broadcasts:
                     hit_df = pd.DataFrame(hit_broadcasts)
                     st.dataframe(hit_df, hide_index=True, use_container_width=True)
+                    st.caption("※一部イベントのみイベント名に反映しています。")
                 else:
                     st.write("ヒットした配信はありませんでした。")
                 
-                # --- ここまでが「ヒット配信」セクション ---
-
-                st.subheader("📝 全体サマリー")
-                total_support_points = int(df_display["獲得支援point"].sum())
-                if "フォロワー数" in df_display.columns and not df_display.empty:
-                    # データを日付でソートしてから最終と初期を取得
-                    df_sorted_by_date = df_display.sort_values(by="配信日時")
-                    final_followers = int(df_sorted_by_date["フォロワー数"].iloc[-1])
-                    initial_followers = int(df_sorted_by_date["フォロワー数"].iloc[0])
-                    total_follower_increase = final_followers - initial_followers
-                    st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
-                    st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
-                
-                st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
-
-                
-                st.subheader("💡 今後の戦略的示唆")
-                # 視聴会員数が0の場合を考慮
-                df_filtered_viewers = df_display[df_display['視聴会員数'] > 0]
-                if not df_filtered_viewers.empty:
-                    avg_support_per_viewer = (df_filtered_viewers["獲得支援point"] / df_filtered_viewers["視聴会員数"]).mean()
-                    avg_comments_per_viewer = (df_filtered_viewers["コメント人数"] / df_filtered_viewers["視聴会員数"]).mean()
-
-                    if avg_support_per_viewer > 50:
-                        st.markdown("👉 視聴会員数あたりの獲得支援ポイントが高い傾向にあります。熱心なファン層が定着しているようです。")
-                    else:
-                        st.markdown("👉 視聴会員数あたりの獲得支援ポイントがやや低い傾向にあります。新規リスナーやライト層へのアプローチを強化し、課金を促す工夫を検討しましょう。")
-
-                    if avg_comments_per_viewer > 0.1:
-                        st.markdown("👉 視聴会員数に対するコメント人数が多いです。積極的にコミュニケーションを取れており、参加型の配信が成功しています。")
-                    else:
-                        st.markdown("👉 視聴会員数に対するコメント人数が少ないです。リスナーがコメントしやすいような質問を投げかけたり、イベントを活用してコメントを促す工夫を検討しましょう。")
-                else:
-                    st.markdown("👉 視聴データが不足しているため、戦略的示唆は表示できません。")
+                # 「今後の戦略的示唆」セクションを削除
+                # --- ここまでが変更/追加 ---
 
