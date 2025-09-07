@@ -150,6 +150,13 @@ def categorize_time_of_day_with_range(hour):
     else:
         return "深夜 (0-3時)"
 
+# 時間帯の順序を定義
+time_of_day_order = [
+    "深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", 
+    "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
+    "夜ピーク (21-22時)", "夜後半 (22-24時)"
+]
+
 # --- メインロジック ---
 if st.button("分析を実行"):
     st.session_state.run_analysis = True
@@ -192,7 +199,7 @@ if st.session_state.run_analysis:
             st.session_state.mk_avg_rate_sg_gift = (mk_sg_gift_df['期限あり/期限なしSGのギフティング数'] / mk_sg_gift_df['ギフト数']).mean() * 100 if not mk_sg_gift_df.empty else 0
             st.session_state.mk_median_rate_sg_gift = (mk_sg_gift_df['期限あり/期限なしSGのギフティング数'] / mk_sg_gift_df['ギフト数']).median() * 100 if not mk_sg_gift_df.empty else 0
 
-            # SGギフト人数率 (エラー箇所の修正)
+            # SGギフト人数率
             mk_sg_person_df = mksp_df.dropna(subset=['期限あり/期限なしSGのギフティング人数', 'ギフト人数'])
             st.session_state.mk_avg_rate_sg_person = (mk_sg_person_df['期限あり/期限なしSGのギフティング人数'] / mk_sg_person_df['ギフト人数']).mean() * 100 if not mk_sg_person_df.empty else 0
             st.session_state.mk_median_rate_sg_person = (mk_sg_person_df['期限あり/期限なしSGのギフティング人数'] / mk_sg_person_df['ギフト人数']).median() * 100 if not mk_sg_person_df.empty else 0
@@ -226,11 +233,6 @@ if st.session_state.run_analysis:
                     'コメント数': 'mean'
                 }).reset_index()
 
-                time_of_day_order = [
-                    "深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", 
-                    "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
-                    "夜ピーク (21-22時)", "夜後半 (22-24時)"
-                ]
                 time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
                 
@@ -418,11 +420,6 @@ if st.session_state.run_analysis:
                     'コメント数': 'mean'
                 }).reset_index()
 
-                time_of_day_order = [
-                    "深夜 (0-3時)", "早朝 (3-6時)", "午前 (9-12時)", 
-                    "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", 
-                    "夜ピーク (21-22時)", "夜後半 (22-24時)"
-                ]
                 time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
                 time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
                 
@@ -675,15 +672,15 @@ if st.session_state.run_analysis:
                 with col5:
                     sg_gift_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング数', 'ギフト数'])
                     total_gifts = sg_gift_df["ギフト数"].sum()
-                    total_sg_gifts = sg_gift_df["期限あり/期限なしSGのギフティング数"].sum()
-                    sg_gift_rate = f"{total_sg_gifts / total_gifts * 100:.1f}%" if total_gifts > 0 else "0%"
-
+                    sg_gifts = sg_gift_df["期限あり/期限なしSGのギフティング数"].sum()
+                    sg_gift_rate = f"{sg_gifts / total_gifts * 100:.1f}%" if total_gifts > 0 else "0%"
+                    
                     metric_html = f"""
                     <div class="stMetric-container">
                         <div class="metric-label">SGギフト数率</div>
                         <div class="metric-value">{sg_gift_rate}</div>
                         <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_sg_gift:.1f}% / MK中央値：{st.session_state.mk_median_rate_sg_gift:.1f}%）</div>
-                        <div class="metric-help">ギフト総数に対するSGギフト数の割合です。</div>
+                        <div class="metric-help">合計ギフト数に対するSG（期限あり/なし）のギフティング数の割合です。</div>
                     </div>
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
@@ -692,43 +689,17 @@ if st.session_state.run_analysis:
                 # SGギフト人数率 (新規追加)
                 with col6:
                     sg_person_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング人数', 'ギフト人数'])
-                    total_gift_people = sg_person_df["ギフト人数"].sum()
-                    total_sg_people = sg_person_df["期限あり/期限なしSGのギフティング人数"].sum()
-                    sg_person_rate = f"{total_sg_people / total_gift_people * 100:.1f}%" if total_gift_people > 0 else "0%"
-
+                    total_gifters_for_sg = sg_person_df["ギフト人数"].sum()
+                    sg_persons = sg_person_df["期限あり/期限なしSGのギフティング人数"].sum()
+                    sg_person_rate = f"{sg_persons / total_gifters_for_sg * 100:.1f}%" if total_gifters_for_sg > 0 else "0%"
+                    
                     metric_html = f"""
                     <div class="stMetric-container">
                         <div class="metric-label">SGギフト人数率</div>
                         <div class="metric-value">{sg_person_rate}</div>
                         <div class="metric-caption">（MK平均値：{st.session_state.mk_avg_rate_sg_person:.1f}% / MK中央値：{st.session_state.mk_median_rate_sg_person:.1f}%）</div>
-                        <div class="metric-help">ギフト人数総数に対するSGギフト人数の割合です。</div>
+                        <div class="metric-help">合計ギフト人数に対するSG（期限あり/なし）のギフティング人数の割合です。</div>
                     </div>
                     """
                     st.markdown(metric_html, unsafe_allow_html=True)
                     st.markdown("---")
-
-                st.subheader("📝 全体サマリー")
-                total_support_points = int(df_display["獲得支援point"].sum())
-                if "フォロワー数" in df_display.columns and not df_display.empty:
-                    final_followers = int(df_display["フォロワー数"].iloc[0])
-                    initial_followers = int(df_display["フォロワー数"].iloc[-1])
-                    total_follower_increase = final_followers - initial_followers
-                    st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
-                    st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
-                
-                st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
-
-                
-                st.subheader("💡 今後の戦略的示唆")
-                avg_support_per_viewer = (df_display["獲得支援point"] / df_display["視聴会員数"]).mean()
-                avg_comments_per_viewer = (df_display["コメント人数"] / df_display["視聴会員数"]).mean()
-                
-                if avg_support_per_viewer > 50:
-                    st.markdown("👉 視聴会員数あたりの獲得支援ポイントが高い傾向にあります。熱心なファン層が定着しているようです。")
-                else:
-                    st.markdown("👉 視聴会員数あたりの獲得支援ポイントがやや低い傾向にあります。新規リスナーやライト層へのアプローチを強化し、課金を促す工夫を検討しましょう。")
-
-                if avg_comments_per_viewer > 0.1:
-                    st.markdown("👉 視聴会員数に対するコメント人数が多いです。積極的にコミュニケーションを取れており、参加型の配信が成功しています。")
-                else:
-                    st.markdown("👉 視聴会員数に対するコメント人数が少ないです。リスナーがコメントしやすいような質問を投げかけたり、イベントを活用してコメントを促す工夫を検討しましょう。")
