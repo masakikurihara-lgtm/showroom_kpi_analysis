@@ -152,9 +152,10 @@ def categorize_time_of_day_with_range(hour):
     else:
         return "深夜 (0-3時)"
 
-# --- ここから追加 ---
-@st.cache_data
+# --- ここから変更 ---
+@st.cache_data(ttl=60) # 1分間キャッシュを保持
 def fetch_event_data():
+# --- ここまで変更 ---
     """イベントデータをCSVから読み込み、キャッシュする"""
     try:
         event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
@@ -190,7 +191,6 @@ def merge_event_data(df_to_merge, event_df):
 
     df_to_merge['イベント名'] = df_to_merge.apply(find_event_name, axis=1)
     return df_to_merge
-# --- ここまで追加 ---
 
 
 # --- メインロジック ---
