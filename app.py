@@ -18,47 +18,45 @@ st.set_page_config(
 )
 
 # --- ここから変更 ---
-# ⑦ タイトルのスタイル調整
-st.markdown("""
-<style>
-h1 {
-    font-size: 2rem !important;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 0.5rem;
-    margin-bottom: 1rem;
-}
-</style>
-""", unsafe_allow_html=True)
+# タイトル
+st.markdown(
+    "<h1 style='font-size:28px; text-align:center; color:#1f2937;'>SHOWROOM ライバーKPI分析ツール</h1>",
+    unsafe_allow_html=True
+)
 
-# ① タイトル変更
-st.title("SHOWROOM ライバーKPI分析ツール")
-# ② サブタイトル削除
-# st.markdown("ライブ配信データから、フォロワーやポイント獲得の傾向を分析し、今後の戦略を検討しましょう。")
+# 説明文
+st.markdown(
+    "<p style='font-size:16px; text-align:center; color:#4b5563;'>"
+    "アカウントIDと分析期間を指定して、ライバーのパフォーマンスを分析します。"
+    "</p>",
+    unsafe_allow_html=True
+)
 
-# ③ 入力フィールドの文言変更
+st.markdown("---")
+
+# 入力フィールド
 account_id = st.text_input(
-    "**アカウントID**を入力してください（全体平均等は**mksp**）",
+    "アカウントID（全体平均等は mksp）",
     ""
 )
-# --- ここまで変更 ---
 
 # 日本時間（JST）を明示的に指定
 JST = pytz.timezone('Asia/Tokyo')
 today = datetime.now(JST).date()
 
-# --- ここから変更 ---
-# ④ 「日付範囲」の文言を削除し、サブヘッダーと統合
-# st.subheader("🗓️ 分析期間を選択")
 # デフォルトの終了日を今日から1日前に設定
 default_end_date = today - timedelta(days=1)
 # デフォルトの開始日を終了日から30日前に設定
 default_start_date = default_end_date - timedelta(days=30)
 
 selected_date_range = st.date_input(
-    "🗓️ 分析期間を選択",
+    "分析期間",
     (default_start_date, default_end_date),
     max_value=today
 )
+
+# ボタンの前に余白を追加
+st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 # --- ここまで変更 ---
 
 
@@ -169,10 +167,8 @@ def categorize_time_of_day_with_range(hour):
     else:
         return "深夜 (0-3時)"
 
-# --- ここから変更 ---
-@st.cache_data(ttl=60) # ⑧ キャッシュ保持を60秒に変更
+@st.cache_data(ttl=60) # キャッシュ保持を60秒に変更
 def fetch_event_data():
-# --- ここまで変更 ---
     """イベントデータをCSVから読み込み、キャッシュする"""
     try:
         event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
@@ -261,17 +257,11 @@ if st.session_state.run_analysis:
         df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
         
         if df is not None and not df.empty:
-            # --- ここから変更 ---
-            # ⑤ メッセージ変更
             st.success("データの読み込みが完了しました！")
-            # --- ここまで変更 ---
             
             if account_id == "mksp":
                 st.subheader("💡 全ライバーの集計データ")
-                # --- ここから変更 ---
-                # ⑥ メッセージ変更
                 st.info("このビューでは、個人関連データは表示されません。")
-                # --- ここまで変更 ---
                 
                 total_support_points = int(df["獲得支援point"].sum())
                 total_viewers = int(df["合計視聴数"].sum())
@@ -624,7 +614,6 @@ if st.session_state.run_analysis:
                     )
                     st.plotly_chart(fig6, use_container_width=True)
                 
-                # --- ここから変更/追加 ---
                 st.subheader("📝 配信ごとの詳細データ")
                 
                 df_display = df.sort_values(by="配信日時", ascending=False).copy()
@@ -636,7 +625,6 @@ if st.session_state.run_analysis:
                 st.dataframe(df_display, hide_index=True)
                 st.caption("※一部イベントのみイベント名に反映しています。")
                 
-                # 「全体サマリー」をここに移動
                 st.subheader("📝 全体サマリー")
                 total_support_points = int(df_display["獲得支援point"].sum())
                 if "フォロワー数" in df_display.columns and not df_display.empty:
@@ -785,7 +773,4 @@ if st.session_state.run_analysis:
                     st.caption("※一部イベントのみイベント名に反映しています。")
                 else:
                     st.write("ヒットした配信はありませんでした。")
-                
-                # 「今後の戦略的示唆」セクションを削除
-                # --- ここまでが変更/追加 ---
 
