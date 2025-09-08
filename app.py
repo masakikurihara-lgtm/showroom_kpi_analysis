@@ -34,6 +34,23 @@ st.markdown(
 
 st.markdown("---")
 
+
+# --- 関数定義 ---
+@st.cache_data(ttl=60) # キャッシュ保持を60秒に変更
+def fetch_event_data():
+    """イベントデータをCSVから読み込み、キャッシュする"""
+    try:
+        event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
+        event_df = pd.read_csv(event_url, dtype={'アカウントID': str})
+        event_df['開始日時'] = pd.to_datetime(event_df['開始日時'], errors='coerce')
+        event_df['終了日時'] = pd.to_datetime(event_df['終了日時'], errors='coerce')
+        event_df_filtered = event_df[(event_df['紐付け'] == '○') & event_df['開始日時'].notna() & event_df['終了日時'].notna()].copy()
+        event_df_filtered = event_df_filtered.sort_values(by='開始日時', ascending=True)
+        return event_df_filtered
+    except Exception as e:
+        st.warning(f"イベント情報の取得に失敗しました: {e}")
+        return pd.DataFrame()
+
 # 入力フィールド
 account_id = st.text_input(
     "アカウントID（全体平均等は mksp）",
@@ -195,21 +212,6 @@ def categorize_time_of_day_with_range(hour):
         return "夜後半 (22-24時)"
     else:
         return "深夜 (0-3時)"
-
-@st.cache_data(ttl=60) # キャッシュ保持を60秒に変更
-def fetch_event_data():
-    """イベントデータをCSVから読み込み、キャッシュする"""
-    try:
-        event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
-        event_df = pd.read_csv(event_url, dtype={'アカウントID': str})
-        event_df['開始日時'] = pd.to_datetime(event_df['開始日時'], errors='coerce')
-        event_df['終了日時'] = pd.to_datetime(event_df['終了日時'], errors='coerce')
-        event_df_filtered = event_df[(event_df['紐付け'] == '○') & event_df['開始日時'].notna() & event_df['終了日時'].notna()].copy()
-        event_df_filtered = event_df_filtered.sort_values(by='開始日時', ascending=True)
-        return event_df_filtered
-    except Exception as e:
-        st.warning(f"イベント情報の取得に失敗しました: {e}")
-        return pd.DataFrame()
 
 def merge_event_data(df_to_merge, event_df):
     """配信データにイベント名をマージする"""
