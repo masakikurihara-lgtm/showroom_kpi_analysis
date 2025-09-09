@@ -23,10 +23,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 説明文
+# ① 説明文
 st.markdown(
     "<p style='font-size:16px; text-align:center; color:#4b5563;'>"
-    "アカウントIDと分析方法を指定して、ライバーのパフォーマンスを分析します。"
+    "分析方法を指定して、配信のパフォーマンスを分析します。"
     "</p>",
     unsafe_allow_html=True
 )
@@ -43,6 +43,7 @@ def fetch_event_data():
         event_df = pd.read_csv(event_url, dtype={'アカウントID': str})
         event_df['開始日時'] = pd.to_datetime(event_df['開始日時'], errors='coerce')
         event_df['終了日時'] = pd.to_datetime(event_df['終了日時'], errors='coerce')
+        # K列(URL)も読み込むようにする
         event_df_filtered = event_df[(event_df['紐付け'] == '○') & event_df['開始日時'].notna() & event_df['終了日時'].notna()].copy()
         event_df_filtered = event_df_filtered.sort_values(by='開始日時', ascending=True)
         return event_df_filtered
@@ -56,14 +57,14 @@ def clear_analysis_results():
         st.session_state.run_analysis = False
 
 # --- UI入力セクション ---
-# ⑤ アカウントIDをパスワード形式で入力
+# アカウントIDをパスワード形式で入力
 account_id = st.text_input(
     "アカウントID（全体平均等は mksp）",
     "",
     type="password"
 )
 
-# ① 分析方法の選択時に分析結果をクリア
+# 分析方法の選択時に分析結果をクリア
 analysis_type = st.radio(
     "分析方法を選択",
     ('期間で指定', 'イベントで指定'),
@@ -97,9 +98,18 @@ else:  # 'イベントで指定'
             if not user_events.empty:
                 event_names = user_events['イベント名'].unique().tolist()
                 if event_names:
-                    selected_event_val = st.selectbox("分析するイベントを選択", options=event_names)
-                    # ④ 注意書きの変更と配置
-                    st.caption("分析したいイベントが登録されていない場合は運営にご照会ください")
+                    # ② イベント選択時にも分析結果をクリア
+                    selected_event_val = st.selectbox("分析するイベントを選択", options=event_names, key='event_selector', on_change=clear_analysis_results)
+                    
+                    # ④ イベントURLへのリンクを追加
+                    if selected_event_val:
+                        event_details_for_link = user_events[user_events['イベント名'] == selected_event_val].iloc[0]
+                        event_url = event_details_for_link.get('URL')
+                        if pd.notna(event_url):
+                            st.markdown(f'<a href="{event_url}" target="_blank" style="text-decoration: none;">▶ {selected_event_val} イベントページへ</a>', unsafe_allow_html=True)
+
+                    # ③ 注意書きの変更と配置
+                    st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
                     st.info("このアカウントIDに紐づくイベントはありません。")
             else:
@@ -124,7 +134,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         st.error("開始日は終了日より前の日付を選択してください。")
         return None, None
 
-    # ② 時刻オブジェクトと日付オブジェクトを区別してループ用の日付を生成
+    # 時刻オブジェクトと日付オブジェクトを区別してループ用の日付を生成
     loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
     loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
 
@@ -176,7 +186,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     else:
         filtered_by_account_df = combined_df[combined_df["アカウントID"] == account_id].copy()
     
-    # ② 時刻オブジェクトと日付オブジェクトでフィルタリング方法を分岐
+    # 時刻オブジェクトと日付オブジェクトでフィルタリング方法を分岐
     if isinstance(start_date, (datetime, pd.Timestamp)):
         # イベント指定の場合：時刻まで含めて比較
         filtered_df = filtered_by_account_df[
@@ -272,7 +282,7 @@ if st.button("分析を実行"):
                 (event_df['イベント名'] == selected_event_val)
             ]
             if not event_details.empty:
-                # ② 時刻まで含めて取得
+                # 時刻まで含めて取得
                 final_start_date = event_details.iloc[0]['開始日時']
                 final_end_date = event_details.iloc[0]['終了日時']
             else:
@@ -335,16 +345,10 @@ if st.session_state.get('run_analysis', False):
             
             df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
             
-            time_of_day_kpis_mean = df.groupby('時間帯').agg({
-                '獲得支援point': 'mean',
-                '合計視聴数': 'mean',
-                'コメント数': 'mean'
-            }).reset_index()
-
+            time_of_day_kpis_mean = df.groupby('時間帯').agg({'獲得支援point': 'mean', '合計視聴数': 'mean', 'コメント数': 'mean'}).reset_index()
             time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
             time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
             time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
-            
             time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
 
             col1, col2, col3 = st.columns(3)
@@ -440,10 +444,18 @@ if st.session_state.get('run_analysis', False):
             event_df_master = fetch_event_data()
             df_display = merge_event_data(df_display, event_df_master)
 
-            # ③ 時刻のフォーマットを変更
             df_display_formatted = df_display.copy()
             df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(df_display_formatted, hide_index=True)
+            
+            # ⑤ テーブルの行を交互に色付け
+            def style_rows(row):
+                return ['background-color: #fafafa'] * len(row) if row.name % 2 == 1 else [''] * len(row)
+            
+            st.dataframe(
+                df_display_formatted.style.apply(style_rows, axis=1),
+                hide_index=True,
+                use_container_width=True
+            )
             
             st.subheader("📝 全体サマリー")
             total_support_points = int(df_display["獲得支援point"].sum())
@@ -533,9 +545,14 @@ if st.session_state.get('run_analysis', False):
 
             if hit_broadcasts:
                 hit_df = pd.DataFrame(hit_broadcasts)
-                # ③ 時刻のフォーマットを変更
                 hit_df['配信日時'] = hit_df['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-                st.dataframe(hit_df, hide_index=True, use_container_width=True)
+                
+                # ⑤ テーブルの行を交互に色付け
+                st.dataframe(
+                    hit_df.style.apply(style_rows, axis=1),
+                    hide_index=True,
+                    use_container_width=True
+                )
             else:
                 st.write("ヒットした配信はありませんでした。")
 
