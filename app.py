@@ -444,6 +444,10 @@ if st.session_state.get('run_analysis', False):
             df_display_formatted = df_display.copy()
             df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
             st.dataframe(df_display_formatted, hide_index=True)
+
+            # ⑤ テーブルの行を交互に色付け & 右寄せ & 小数点修正
+            def style_rows(row):
+                return ['background-color: #fafafa'] * len(row) if row.name % 2 == 1 else [''] * len(row)
             
             st.subheader("📝 全体サマリー")
             total_support_points = int(df_display["獲得支援point"].sum())
