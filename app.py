@@ -89,7 +89,7 @@ if analysis_type == '期間で指定':
         (default_start_date, default_end_date),
         max_value=today
     )
-else:  # 'イベントで指定'
+else: # 'イベントで指定'
     if account_id:
         event_df = fetch_event_data()
         if not event_df.empty:
@@ -248,6 +248,19 @@ def merge_event_data(df_to_merge, event_df):
 
     df_to_merge['イベント名'] = df_to_merge.apply(find_event_name, axis=1)
     return df_to_merge
+
+# テーブルの行を交互に色付けする関数
+def style_alternate_rows(df):
+    """
+    DataFrameの行を交互に色付けするためのスタイルを適用します。
+    """
+    return df.style.apply(
+        lambda row: [
+            'background-color: #f0f2f6' if row.name % 2 == 0 else ''
+            for _ in row
+        ],
+        axis=1
+    )
 
 
 # --- メインロジック ---
@@ -443,7 +456,8 @@ if st.session_state.get('run_analysis', False):
             # ③ 時刻のフォーマットを変更
             df_display_formatted = df_display.copy()
             df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(df_display_formatted, hide_index=True)
+            # 修正箇所: 行を交互に色付け
+            st.dataframe(style_alternate_rows(df_display_formatted), hide_index=True)
             
             st.subheader("📝 全体サマリー")
             total_support_points = int(df_display["獲得支援point"].sum())
@@ -535,7 +549,7 @@ if st.session_state.get('run_analysis', False):
                 hit_df = pd.DataFrame(hit_broadcasts)
                 # ③ 時刻のフォーマットを変更
                 hit_df['配信日時'] = hit_df['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-                st.dataframe(hit_df, hide_index=True, use_container_width=True)
+                # 修正箇所: 行を交互に色付け
+                st.dataframe(style_alternate_rows(hit_df), hide_index=True, use_container_width=True)
             else:
                 st.write("ヒットした配信はありませんでした。")
-
