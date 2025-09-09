@@ -26,7 +26,7 @@ st.markdown(
 # 説明文
 st.markdown(
     "<p style='font-size:16px; text-align:center; color:#4b5563;'>"
-    "分析方法を指定して、配信のパフォーマンスを分析します。　"
+    " 分析方法を指定して、配信のパフォーマンスを分析します。"
     "</p>",
     unsafe_allow_html=True
 )
