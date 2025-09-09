@@ -33,16 +33,6 @@ st.markdown(
 
 st.markdown("---")
 
-# 📝 テーブルに交互に色を付けるためのカスタムCSSを注入
-# これにより、すべてのst.dataframeの行に交互に色が適用されます
-st.markdown("""
-<style>
-/* テーブルのデータ行（tbody）の偶数行に背景色を適用 */
-table.st-emotion-cache-9y2p4k tbody tr:nth-child(even) {
-    background-color: #fafafa;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # --- 関数定義 ---
 @st.cache_data(ttl=60) # キャッシュ保持を60秒に変更
@@ -548,3 +538,4 @@ if st.session_state.get('run_analysis', False):
                 st.dataframe(hit_df, hide_index=True, use_container_width=True)
             else:
                 st.write("ヒットした配信はありませんでした。")
+
