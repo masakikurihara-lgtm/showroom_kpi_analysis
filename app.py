@@ -250,13 +250,6 @@ def merge_event_data(df_to_merge, event_df):
     return df_to_merge
 
 
-# ③ 行を交互に色付けする関数
-def highlight_rows(row):
-    styles = [''] * len(row)
-    if row.name % 2 == 1:
-        styles = ['background-color: #fafafa'] * len(row) # 薄い灰色
-    return styles
-
 # --- メインロジック ---
 if st.button("分析を実行"):
     final_start_date, final_end_date = None, None
@@ -321,7 +314,7 @@ if st.session_state.get('run_analysis', False):
 
     # ライバー個別のデータ読み込み
     df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
-        
+    
     if df is not None and not df.empty:
         st.success("データの読み込みが完了しました！")
         
@@ -447,10 +440,10 @@ if st.session_state.get('run_analysis', False):
             event_df_master = fetch_event_data()
             df_display = merge_event_data(df_display, event_df_master)
 
-            # ③ 時刻のフォーマットを変更し、スタイルを適用
+            # ③ 時刻のフォーマットを変更
             df_display_formatted = df_display.copy()
             df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(df_display_formatted.style.apply(highlight_rows, axis=1), hide_index=True)
+            st.dataframe(df_display_formatted, hide_index=True)
             
             st.subheader("📝 全体サマリー")
             total_support_points = int(df_display["獲得支援point"].sum())
@@ -540,9 +533,56 @@ if st.session_state.get('run_analysis', False):
 
             if hit_broadcasts:
                 hit_df = pd.DataFrame(hit_broadcasts)
-                hit_df['配信日時'] = pd.to_datetime(hit_df['配信日時']).dt.strftime('%Y-%m-%d %H:%M')
-                st.dataframe(hit_df.style.apply(highlight_rows, axis=1), hide_index=True)
+                # st.dataframeが交互の行色をサポートしていないため、HTMLでテーブルを生成して表示します。
+                # この修正は、ヒット配信の表示部分のみに限定されています。
+                html_table_string = """
+                <style>
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-family: sans-serif;
+                    }
+                    th {
+                        background-color: #f0f2f6;
+                        color: #333;
+                        font-weight: bold;
+                        padding: 10px;
+                        text-align: left;
+                    }
+                    td {
+                        padding: 10px;
+                        border-bottom: 1px solid #ddd;
+                        color: #555;
+                    }
+                    tr:nth-child(even) {
+                        background-color: #f9f9f9;
+                    }
+                    tr:hover {
+                        background-color: #f1f1f1;
+                    }
+                </style>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>配信日時</th>
+                            <th>ヒット項目</th>
+                            <th>イベント名</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                """
+                
+                # ③ 時刻のフォーマットを変更
+                hit_df_formatted = hit_df.copy()
+                hit_df_formatted['配信日時'] = hit_df_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
+                
+                for _, row in hit_df_formatted.iterrows():
+                    html_table_string += f"<tr><td>{row['配信日時']}</td><td>{row['ヒット項目']}</td><td>{row['イベント名']}</td></tr>"
+                
+                html_table_string += """
+                    </tbody>
+                </table>
+                """
+                st.markdown(html_table_string, unsafe_allow_html=True)
             else:
-                st.info("ヒット配信のデータは見つかりませんでした。")
-    else:
-        st.info("指定された条件のデータが見つからなかったか、まだ分析が実行されていません。アカウントIDと期間またはイベントを指定して「分析を実行」ボタンを押してください。")
+                st.write("ヒットした配信はありませんでした。")
