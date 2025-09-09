@@ -98,7 +98,12 @@ else:  # 'イベントで指定'
             if not user_events.empty:
                 event_names = user_events['イベント名'].unique().tolist()
                 if event_names:
-                    selected_event_val = st.selectbox("分析するイベントを選択", options=event_names)
+                    # イベント変更時に分析結果をクリアするコールバックを追加
+                    selected_event_val = st.selectbox(
+                        "分析するイベントを選択", 
+                        options=event_names,
+                        on_change=clear_analysis_results
+                    )
                     # ④ 注意書きの変更と配置
                     st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
@@ -539,4 +544,3 @@ if st.session_state.get('run_analysis', False):
                 st.dataframe(hit_df, hide_index=True, use_container_width=True)
             else:
                 st.write("ヒットした配信はありませんでした。")
-
