@@ -55,6 +55,19 @@ def clear_analysis_results():
     if 'run_analysis' in st.session_state:
         st.session_state.run_analysis = False
 
+# --- 新しい関数: 奇数行の背景色を変更する ---
+def highlight_rows(row):
+    """
+    データフレームの奇数行に薄い灰色の背景色を適用する
+    st.dataframeのスタイル機能で使用
+    """
+    styles = [''] * len(row)
+    # row.nameは行のインデックス
+    if row.name % 2 == 1:
+        styles = ['background-color: #f5f5f5'] * len(row) # 薄い灰色
+    return styles
+
+
 # --- UI入力セクション ---
 # ⑤ アカウントIDをパスワード形式で入力
 account_id = st.text_input(
@@ -89,7 +102,7 @@ if analysis_type == '期間で指定':
         (default_start_date, default_end_date),
         max_value=today
     )
-else:  # 'イベントで指定'
+else: # 'イベントで指定'
     if account_id:
         event_df = fetch_event_data()
         if not event_df.empty:
@@ -260,7 +273,7 @@ if st.button("分析を実行"):
         else:
             st.error("有効な期間が選択されていません。")
     
-    else:  # 'イベントで指定'
+    else: # 'イベントで指定'
         if not account_id:
             st.error("アカウントIDが入力されていません。")
         elif not selected_event_val:
@@ -443,7 +456,9 @@ if st.session_state.get('run_analysis', False):
             # ③ 時刻のフォーマットを変更
             df_display_formatted = df_display.copy()
             df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(df_display_formatted, hide_index=True)
+            
+            # 奇数行のハイライトを適用
+            st.dataframe(df_display_formatted.style.apply(highlight_rows, axis=1), hide_index=True)
             
             st.subheader("📝 全体サマリー")
             total_support_points = int(df_display["獲得支援point"].sum())
@@ -533,56 +548,7 @@ if st.session_state.get('run_analysis', False):
 
             if hit_broadcasts:
                 hit_df = pd.DataFrame(hit_broadcasts)
-                # st.dataframeが交互の行色をサポートしていないため、HTMLでテーブルを生成して表示します。
-                # この修正は、ヒット配信の表示部分のみに限定されています。
-                html_table_string = """
-                <style>
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        font-family: sans-serif;
-                    }
-                    th {
-                        background-color: #f0f2f6;
-                        color: #333;
-                        font-weight: bold;
-                        padding: 10px;
-                        text-align: left;
-                    }
-                    td {
-                        padding: 10px;
-                        border-bottom: 1px solid #ddd;
-                        color: #555;
-                    }
-                    tr:nth-child(even) {
-                        background-color: #f9f9f9;
-                    }
-                    tr:hover {
-                        background-color: #f1f1f1;
-                    }
-                </style>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>配信日時</th>
-                            <th>ヒット項目</th>
-                            <th>イベント名</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                """
-                
-                # ③ 時刻のフォーマットを変更
-                hit_df_formatted = hit_df.copy()
-                hit_df_formatted['配信日時'] = hit_df_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-                
-                for _, row in hit_df_formatted.iterrows():
-                    html_table_string += f"<tr><td>{row['配信日時']}</td><td>{row['ヒット項目']}</td><td>{row['イベント名']}</td></tr>"
-                
-                html_table_string += """
-                    </tbody>
-                </table>
-                """
-                st.markdown(html_table_string, unsafe_allow_html=True)
+                hit_df['配信日時'] = pd.to_datetime(hit_df['配信日時']).dt.strftime('%Y-%m-%d %H:%M')
+                st.dataframe(hit_df.style.apply(highlight_rows, axis=1), hide_index=True)
             else:
-                st.write("ヒットした配信はありませんでした。")
+                st.info("この期間中には、特定の基準を満たす「ヒット配信」は見つかりませんでした。")
