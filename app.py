@@ -104,6 +104,14 @@ else:  # 'イベントで指定'
                         options=event_names,
                         on_change=clear_analysis_results
                     )
+                    
+                    # 修正内容：イベントURLへのリンクを追加
+                    event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
+                    if not event_details_to_link.empty:
+                        event_url = event_details_to_link.iloc[0]['イベントURL']
+                        if pd.notna(event_url):
+                            st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
+                    
                     # ④ 注意書きの変更と配置
                     st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
@@ -536,11 +544,11 @@ if st.session_state.get('run_analysis', False):
                 if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.0: hit_items.append('コメント人数')
                 if hit_items:
                     hit_broadcasts.append({'配信日時': row['配信日時'], 'ヒット項目': ', '.join(hit_items), 'イベント名': row['イベント名']})
-
             if hit_broadcasts:
                 hit_df = pd.DataFrame(hit_broadcasts)
-                # ③ 時刻のフォーマットを変更
-                hit_df['配信日時'] = hit_df['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-                st.dataframe(hit_df, hide_index=True, use_container_width=True)
+                hit_df['配信日時'] = pd.to_datetime(hit_df['配信日時']).dt.strftime('%Y-%m-%d %H:%M')
+                st.dataframe(hit_df, hide_index=True)
             else:
-                st.write("ヒットした配信はありませんでした。")
+                st.info("条件を満たす「ヒット配信」は見つかりませんでした。")
+    
+    
