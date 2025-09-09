@@ -435,6 +435,15 @@ if st.session_state.get('run_analysis', False):
                 fig6.update_layout(title_text="コメント数 (中央値)", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
                 st.plotly_chart(fig6, use_container_width=True)
             
+            # --- Streamlit DataFrameの行の色を交互に変えるCSS ---
+            st.markdown("""
+            <style>
+                .stDataFrame table tbody tr:nth-child(even) {
+                    background-color: #f0f0f0;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+
             st.subheader("📝 配信ごとの詳細データ")
             df_display = df.sort_values(by="配信日時", ascending=False).copy()
             event_df_master = fetch_event_data()
@@ -538,4 +547,3 @@ if st.session_state.get('run_analysis', False):
                 st.dataframe(hit_df, hide_index=True, use_container_width=True)
             else:
                 st.write("ヒットした配信はありませんでした。")
-
