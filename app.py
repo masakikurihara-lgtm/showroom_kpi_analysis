@@ -250,6 +250,13 @@ def merge_event_data(df_to_merge, event_df):
     return df_to_merge
 
 
+# ③ 行を交互に色付けする関数
+def highlight_rows(row):
+    styles = [''] * len(row)
+    if row.name % 2 == 1:
+        styles = ['background-color: #fafafa'] * len(row) # 薄い灰色
+    return styles
+
 # --- メインロジック ---
 if st.button("分析を実行"):
     final_start_date, final_end_date = None, None
@@ -314,7 +321,7 @@ if st.session_state.get('run_analysis', False):
 
     # ライバー個別のデータ読み込み
     df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
-    
+        
     if df is not None and not df.empty:
         st.success("データの読み込みが完了しました！")
         
@@ -440,10 +447,10 @@ if st.session_state.get('run_analysis', False):
             event_df_master = fetch_event_data()
             df_display = merge_event_data(df_display, event_df_master)
 
-            # ③ 時刻のフォーマットを変更
+            # ③ 時刻のフォーマットを変更し、スタイルを適用
             df_display_formatted = df_display.copy()
             df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(df_display_formatted, hide_index=True)
+            st.dataframe(df_display_formatted.style.apply(highlight_rows, axis=1), hide_index=True)
             
             st.subheader("📝 全体サマリー")
             total_support_points = int(df_display["獲得支援point"].sum())
@@ -533,9 +540,9 @@ if st.session_state.get('run_analysis', False):
 
             if hit_broadcasts:
                 hit_df = pd.DataFrame(hit_broadcasts)
-                # ③ 時刻のフォーマットを変更
-                hit_df['配信日時'] = hit_df['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-                st.dataframe(hit_df, hide_index=True, use_container_width=True)
+                hit_df['配信日時'] = pd.to_datetime(hit_df['配信日時']).dt.strftime('%Y-%m-%d %H:%M')
+                st.dataframe(hit_df.style.apply(highlight_rows, axis=1), hide_index=True)
             else:
-                st.write("ヒットした配信はありませんでした。")
-
+                st.info("ヒット配信のデータは見つかりませんでした。")
+    else:
+        st.info("指定された条件のデータが見つからなかったか、まだ分析が実行されていません。アカウントIDと期間またはイベントを指定して「分析を実行」ボタンを押してください。")
