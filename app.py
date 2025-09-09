@@ -55,19 +55,6 @@ def clear_analysis_results():
     if 'run_analysis' in st.session_state:
         st.session_state.run_analysis = False
 
-# --- 新しい関数: 奇数行の背景色を変更する ---
-def highlight_rows(row):
-    """
-    データフレームの奇数行に薄い灰色の背景色を適用する
-    st.dataframeのスタイル機能で使用
-    """
-    styles = [''] * len(row)
-    # row.nameは行のインデックス
-    if row.name % 2 == 1:
-        styles = ['background-color: #f5f5f5'] * len(row) # 薄い灰色
-    return styles
-
-
 # --- UI入力セクション ---
 # ⑤ アカウントIDをパスワード形式で入力
 account_id = st.text_input(
@@ -102,7 +89,7 @@ if analysis_type == '期間で指定':
         (default_start_date, default_end_date),
         max_value=today
     )
-else: # 'イベントで指定'
+else:  # 'イベントで指定'
     if account_id:
         event_df = fetch_event_data()
         if not event_df.empty:
@@ -273,7 +260,7 @@ if st.button("分析を実行"):
         else:
             st.error("有効な期間が選択されていません。")
     
-    else: # 'イベントで指定'
+    else:  # 'イベントで指定'
         if not account_id:
             st.error("アカウントIDが入力されていません。")
         elif not selected_event_val:
@@ -456,9 +443,7 @@ if st.session_state.get('run_analysis', False):
             # ③ 時刻のフォーマットを変更
             df_display_formatted = df_display.copy()
             df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-            
-            # 奇数行のハイライトを適用
-            st.dataframe(df_display_formatted.style.apply(highlight_rows, axis=1), hide_index=True)
+            st.dataframe(df_display_formatted, hide_index=True)
             
             st.subheader("📝 全体サマリー")
             total_support_points = int(df_display["獲得支援point"].sum())
@@ -548,7 +533,9 @@ if st.session_state.get('run_analysis', False):
 
             if hit_broadcasts:
                 hit_df = pd.DataFrame(hit_broadcasts)
-                hit_df['配信日時'] = pd.to_datetime(hit_df['配信日時']).dt.strftime('%Y-%m-%d %H:%M')
-                st.dataframe(hit_df.style.apply(highlight_rows, axis=1), hide_index=True)
+                # ③ 時刻のフォーマットを変更
+                hit_df['配信日時'] = hit_df['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
+                st.dataframe(hit_df, hide_index=True, use_container_width=True)
             else:
-                st.info("この期間中には、特定の基準を満たす「ヒット配信」は見つかりませんでした。")
+                st.write("ヒットした配信はありませんでした。")
+
