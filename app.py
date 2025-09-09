@@ -100,7 +100,7 @@ else:  # 'イベントで指定'
                 if event_names:
                     selected_event_val = st.selectbox("分析するイベントを選択", options=event_names)
                     # ④ 注意書きの変更と配置
-                    st.caption("分析したいイベントが登録されていない場合は運営にご照会ください")
+                    st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
                     st.info("このアカウントIDに紐づくイベントはありません。")
             else:
