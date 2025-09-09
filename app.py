@@ -448,6 +448,7 @@ if st.session_state.get('run_analysis', False):
             # ⑤ テーブルの行を交互に色付け & 右寄せ & 小数点修正
             def style_rows(row):
                 return ['background-color: #fafafa'] * len(row) if row.name % 2 == 1 else [''] * len(row)
+            )
             
             st.subheader("📝 全体サマリー")
             total_support_points = int(df_display["獲得支援point"].sum())
