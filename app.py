@@ -149,7 +149,6 @@ def load_and_preprocess_data_source():
     """
     all_dfs = []
     
-    # --- 修正点 1: 月初の固定日で全データソースをスキャン ---
     # データソースの探索を開始する固定日
     search_start_date = date(2014, 1, 1)
     # 探索の終了日（今日）
@@ -168,14 +167,14 @@ def load_and_preprocess_data_source():
             url = f"https://mksoul-pro.com/showroom/kpi_csv/live_kpi_from_{start_date_str}_page{page:02d}.csv"
             
             try:
-                # HEADリクエストでファイルの存在を素早く確認
-                response = requests.head(url, timeout=5) 
-                if response.status_code != 200:
-                    # ファイルが存在しない場合、この月での探索は終了
-                    break 
-
-                # ファイルが存在する場合のみGETリクエストで内容を取得
+                # GETリクエストを直接実行
                 response = requests.get(url, timeout=10)
+
+                # 404 Not Foundの場合、この月にはもうページがないと判断してループを抜ける
+                if response.status_code == 404:
+                    break
+                
+                # 404以外のHTTPエラーコードの場合、例外を発生させる
                 response.raise_for_status()
 
                 csv_text = response.content.decode('utf-8-sig')
@@ -199,14 +198,17 @@ def load_and_preprocess_data_source():
                 df.columns = df.columns.str.strip().str.replace('"', '')
                 all_dfs.append(df)
             
-            except requests.exceptions.RequestException:
-                # タイムアウトや接続エラーはここでキャッチしてページループを中断
+            except requests.exceptions.RequestException as e:
+                # 接続エラーやタイムアウトが発生した場合、この月の処理を中断して次へ
+                st.warning(f"URLへのアクセス中にエラー発生: {url}。次の月の探索に移ります。")
                 break 
-            except Exception:
-                # その他のCSVパースエラーなどもページループを中断
-                break
+            except Exception as e:
+                # CSVのパースエラーなど、予期せぬエラーが発生した場合、このページをスキップして次へ
+                st.warning(f"ファイル処理中にエラー発生: {url}。このページをスキップします。")
+                page += 1 # 無限ループを避けるためページを進める
+                continue
                 
-            page += 1 # 次のページへ
+            page += 1 # 正常に処理できたら次のページへ
             
         # 次の月の1日へ移動
         if current_search_date.month == 12:
@@ -220,7 +222,7 @@ def load_and_preprocess_data_source():
     # 取得したすべてのデータフレームを結合
     combined_df = pd.concat(all_dfs, ignore_index=True)
 
-    # --- 修正点 2: 重複データの削除 ---
+    # 重複データの削除
     combined_df.drop_duplicates(inplace=True)
 
     # 日時形式と数値形式への変換
@@ -237,7 +239,10 @@ def load_and_preprocess_data_source():
     ]
     for col in numeric_cols:
         if col in combined_df.columns:
-            combined_df[col] = pd.to_numeric(combined_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
+            # `coerce`でエラーをNaNに変換し、その後`fillna(0)`で0に置換
+            numeric_series = pd.to_numeric(combined_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
+            combined_df[col] = numeric_series.fillna(0)
+
 
     return combined_df
 
@@ -586,6 +591,7 @@ if st.session_state.get('run_analysis', False):
                 st.markdown(metric_html, unsafe_allow_html=True)
 
             st.markdown("<hr>", unsafe_allow_html=True)
+
 
 
             st.subheader("🎯 ヒット配信")
