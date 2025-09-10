@@ -10,48 +10,6 @@ import plotly.express as px
 import time
 from bs4 import BeautifulSoup
 
-# --- カスタムCSSの追加 ---
-st.markdown(
-    """
-    <style>
-    /* アカウントID入力欄のラベルを修正 */
-    .stTextInput label {
-        font-weight: bold;
-        font-size: 1.25rem; /* イベント期間と同じフォントサイズ */
-        color: #1f2937; /* #1f2937はh1の色、#4b5563はpの色です。どちらかを選択してください。 */
-    }
-
-    /* ラジオボタンのラベルを修正 */
-    .stRadio label {
-        font-weight: bold;
-        font-size: 1.25rem;
-        color: #1f2937;
-    }
-
-    /* 日付入力のラベルを修正 */
-    .stDateInput label {
-        font-weight: bold;
-        font-size: 1.25rem;
-        color: #1f2937;
-    }
-    
-    /* セレクトボックスのラベルを修正 */
-    .stSelectbox label {
-        font-weight: bold;
-        font-size: 1.25rem;
-        color: #1f2937;
-    }
-
-    /* イベント期間の表示も同様に合わせる */
-    .event-period-text {
-        font-weight: bold;
-        font-size: 1.25rem;
-        color: #1f2937;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
 # ページ設定
 st.set_page_config(
