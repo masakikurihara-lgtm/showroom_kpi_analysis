@@ -105,16 +105,10 @@ else:  # 'イベントで指定'
                         on_change=clear_analysis_results
                     )
                     
-                    # 修正内容：イベント期間とURLへのリンクを追加
+                    # 修正内容：イベントURLへのリンクを追加
                     event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
                     if not event_details_to_link.empty:
                         event_url = event_details_to_link.iloc[0]['イベントURL']
-                        start_time = event_details_to_link.iloc[0]['開始日時']
-                        end_time = event_details_to_link.iloc[0]['終了日時']
-                        if pd.notna(start_time) and pd.notna(end_time):
-                            formatted_start = start_time.strftime('%Y/%m/%d %H:%M')
-                            formatted_end = end_time.strftime('%Y/%m/%d %H:%M')
-                            st.markdown(f"イベント期間：{formatted_start} - {formatted_end}")
                         if pd.notna(event_url):
                             st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
                     
@@ -545,23 +539,16 @@ if st.session_state.get('run_analysis', False):
                 if pd.notna(row['短時間滞在者数']) and row['視聴会員数'] > 0 and (row['短時間滞在者数'] / row['視聴会員数']) <= 0.20: hit_items.append('短時間滞在者率')
                 if pd.notna(row['獲得支援point']) and row['獲得支援point'] >= avg_support_points * 2.5: hit_items.append('獲得支援point')
                 if pd.notna(row['期限あり/期限なしSG総額']) and row['期限あり/期限なしSG総額'] >= avg_sg_total * 2.5: hit_items.append('SG総額')
-                if pd.notna(row['期限あり/期限なしSGのギフティング人数']) and row['期限あり/期限なしSGのギフティング人数'] >= avg_sg_gifters * 2.5: hit_items.append('SGギフト人数')
-                if pd.notna(row['ギフト人数']) and row['ギフト人数'] >= avg_gifters * 2.5: hit_items.append('ギフト人数')
-                if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.5: hit_items.append('コメント数')
-
+                if pd.notna(row['期限あり/期限なしSGのギフティング人数']) and row['期限あり/期限なしSGのギフティング人数'] >= avg_sg_gifters * 2.0: hit_items.append('SGギフト人数')
+                if pd.notna(row['ギフト人数']) and row['ギフト人数'] >= avg_gifters * 2.0: hit_items.append('ギフト人数')
+                if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.0: hit_items.append('コメント人数')
                 if hit_items:
-                    hit_broadcasts.append({
-                        '配信日時': row['配信日時'],
-                        'ルーム名': row['ルーム名'],
-                        '達成項目': ', '.join(hit_items)
-                    })
-
+                    hit_broadcasts.append({'配信日時': row['配信日時'], 'ヒット項目': ', '.join(hit_items), 'イベント名': row['イベント名']})
             if hit_broadcasts:
                 hit_df = pd.DataFrame(hit_broadcasts)
                 hit_df['配信日時'] = pd.to_datetime(hit_df['配信日時']).dt.strftime('%Y-%m-%d %H:%M')
                 st.dataframe(hit_df, hide_index=True)
             else:
-                st.info("ヒット配信の条件を満たす配信はありませんでした。")
-
-    else:
-        st.error("データの読み込み中にエラーが発生しました。入力情報とデータファイルを確認してください。")
+                st.info("条件を満たす「ヒット配信」は見つかりませんでした。")
+    
+    
