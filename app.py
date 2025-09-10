@@ -143,12 +143,13 @@ st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 @st.cache_data(ttl=3600) # データのスキャンに時間がかかるためキャッシュ時間を延長
 def load_and_preprocess_data_source():
     """
-    2014-01-01から今日までのすべてのKPIデータソースをスキャンして読み込み、
+    2014年1月から今月までのすべてのKPIデータソースをスキャンして読み込み、
     一つのデータフレームに結合してキャッシュする関数。
+    ファイル名はYYYY-MM-01の形式で探索する。
     """
     all_dfs = []
     
-    # --- 修正点 1: 固定の日付範囲で全データソースをスキャン ---
+    # --- 修正点 1: 月初の固定日で全データソースをスキャン ---
     # データソースの探索を開始する固定日
     search_start_date = date(2014, 1, 1)
     # 探索の終了日（今日）
@@ -156,9 +157,10 @@ def load_and_preprocess_data_source():
     
     current_search_date = search_start_date
     
-    # 2014-01-01から今日まで1日ずつループ
+    # 2014年1月から今日の月まで1ヶ月ずつループ
     while current_search_date <= search_end_date:
-        start_date_str = current_search_date.strftime('%Y-%m-%d')
+        # ファイル名は常にYYYY-MM-01の形式
+        start_date_str = current_search_date.strftime('%Y-%m-01')
         page = 1
         
         # ページが続く限りデータを取得する内部ループ
@@ -166,16 +168,18 @@ def load_and_preprocess_data_source():
             url = f"https://mksoul-pro.com/showroom/kpi_csv/live_kpi_from_{start_date_str}_page{page:02d}.csv"
             
             try:
-                response = requests.head(url) # HEADリクエストでファイルの存在確認
+                # HEADリクエストでファイルの存在を素早く確認
+                response = requests.head(url, timeout=5) 
                 if response.status_code != 200:
-                    break # ファイルが存在しないのでページループを抜ける
+                    # ファイルが存在しない場合、この月での探索は終了
+                    break 
 
                 # ファイルが存在する場合のみGETリクエストで内容を取得
-                response = requests.get(url)
+                response = requests.get(url, timeout=10)
                 response.raise_for_status()
 
                 csv_text = response.content.decode('utf-8-sig')
-                if len(csv_text.strip()) == 0: # 空のファイルなら次へ
+                if not csv_text or csv_text.isspace(): # 空のファイルなら次へ
                     page += 1
                     continue
 
@@ -187,7 +191,7 @@ def load_and_preprocess_data_source():
                 # 既存のCSV読み込み処理
                 header_line = lines[0]
                 data_lines = lines[1:]
-                cleaned_data_lines = [','.join(line.split(',')[:-1]) for line in data_lines]
+                cleaned_data_lines = [','.join(line.split(',')[:-1]) for line in data_lines if line]
                 cleaned_csv_text = header_line + '\n' + '\n'.join(cleaned_data_lines)
                 
                 csv_data = io.StringIO(cleaned_csv_text)
@@ -196,15 +200,19 @@ def load_and_preprocess_data_source():
                 all_dfs.append(df)
             
             except requests.exceptions.RequestException:
-                # 通信エラーはここでキャッチしてページループを中断
+                # タイムアウトや接続エラーはここでキャッチしてページループを中断
                 break 
             except Exception:
-                # その他のエラーもページループを中断
+                # その他のCSVパースエラーなどもページループを中断
                 break
                 
             page += 1 # 次のページへ
             
-        current_search_date += timedelta(days=1) # 次の日付へ
+        # 次の月の1日へ移動
+        if current_search_date.month == 12:
+            current_search_date = date(current_search_date.year + 1, 1, 1)
+        else:
+            current_search_date = date(current_search_date.year, current_search_date.month + 1, 1)
 
     if not all_dfs:
         return None
@@ -244,7 +252,8 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         return None, None
         
     # キャッシュされた全データを取得
-    source_df = load_and_preprocess_data_source()
+    with st.spinner("データソースを読み込んでいます..."):
+        source_df = load_and_preprocess_data_source()
 
     if source_df is None or source_df.empty:
         st.error(f"分析対象のデータが一つも見つかりませんでした。")
@@ -577,7 +586,6 @@ if st.session_state.get('run_analysis', False):
                 st.markdown(metric_html, unsafe_allow_html=True)
 
             st.markdown("<hr>", unsafe_allow_html=True)
-
 
 
             st.subheader("🎯 ヒット配信")
