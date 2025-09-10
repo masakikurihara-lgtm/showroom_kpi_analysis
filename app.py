@@ -138,6 +138,7 @@ st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
 
 # データの読み込みと前処理関数
+#@st.cache_data(ttl=3600) # データのキャッシュを1時間保持
 def load_and_preprocess_data(account_id, start_date, end_date):
     if not account_id:
         st.error("アカウントIDを入力してください。")
