@@ -105,10 +105,19 @@ else:  # 'イベントで指定'
                         on_change=clear_analysis_results
                     )
                     
-                    # 修正内容：イベントURLへのリンクを追加
                     event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
                     if not event_details_to_link.empty:
+                        start_time = event_details_to_link.iloc[0]['開始日時']
+                        end_time = event_details_to_link.iloc[0]['終了日時']
+                        
+                        # ご要望の修正: イベント期間の表示を太字で追加
+                        if pd.notna(start_time) and pd.notna(end_time):
+                            start_time_str = start_time.strftime('%Y/%m/%d %H:%M')
+                            end_time_str = end_time.strftime('%Y/%m/%d %H:%M')
+                            st.markdown(f"**イベント期間：{start_time_str} - {end_time_str}**", unsafe_allow_html=True)
+
                         event_url = event_details_to_link.iloc[0]['イベントURL']
+                        # 修正内容：イベントURLへのリンクを追加
                         if pd.notna(event_url):
                             st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
                     
