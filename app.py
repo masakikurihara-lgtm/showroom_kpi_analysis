@@ -147,42 +147,47 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         st.error("開始日は終了日より前の日付を選択してください。")
         return None, None
 
-    # ② 時刻オブジェクトと日付オブジェクトを区別してループ用の日付を生成
+    # 時刻オブジェクトと日付オブジェクトを区別してループ用の日付を生成
     loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
     loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
 
     all_dfs = []
     current_date = loop_start_date
-    while current_date <= loop_end_date:
-        year = current_date.year
-        month = current_date.month
-        
-        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
-        
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            csv_text = response.content.decode('utf-8-sig')
-            lines = csv_text.strip().split('\n')
-            header_line = lines[0]
-            data_lines = lines[1:]
-            cleaned_data_lines = [','.join(line.split(',')[:-1]) for line in data_lines]
-            cleaned_csv_text = header_line + '\n' + '\n'.join(cleaned_data_lines)
-            csv_data = io.StringIO(cleaned_csv_text)
-            df = pd.read_csv(csv_data)
-            df.columns = df.columns.str.strip().str.replace('"', '')
-            all_dfs.append(df)
+    with st.spinner('データを読み込んでいます...'):
+        while current_date <= loop_end_date:
+            year = current_date.year
+            month = current_date.month
             
-        except requests.exceptions.RequestException as e:
-            st.warning(f"{year}年{month}月のデータが見つかりませんでした。スキップします。")
-        except Exception as e:
-            st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
-            return None, None
+            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
             
-        if current_date.month == 12:
-            current_date = date(current_date.year + 1, 1, 1)
-        else:
-            current_date = date(current_date.year, current_date.month + 1, 1)
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+                
+                # 💡 修正箇所: on_bad_lines='skip' を使用して不正な行をスキップ
+                df = pd.read_csv(csv_data, on_bad_lines='skip')
+                
+                # CSVファイルによってはカラム名に余分な文字が入ることがあるため、前処理
+                df.columns = df.columns.str.strip().str.replace('"', '')
+                all_dfs.append(df)
+            
+            except requests.exceptions.RequestException as e:
+                # 404 Not Foundの場合に警告を表示
+                if e.response and e.response.status_code == 404:
+                    st.warning(f"{year}年{month}月のデータが見つかりませんでした。スキップします。")
+                else:
+                    st.error(f"データの取得中に予期せぬエラーが発生しました: {e}")
+                    return None, None
+            except Exception as e:
+                st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
+                return None, None
+            
+            # 月を一つ進める
+            if current_date.month == 12:
+                current_date = date(current_date.year + 1, 1, 1)
+            else:
+                current_date = date(current_date.year, current_date.month + 1, 1)
 
     if not all_dfs:
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
@@ -199,7 +204,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     else:
         filtered_by_account_df = combined_df[combined_df["アカウントID"] == account_id].copy()
     
-    # ② 時刻オブジェクトと日付オブジェクトでフィルタリング方法を分岐
+    # 時刻オブジェクトと日付オブジェクトでフィルタリング方法を分岐
     if isinstance(start_date, (datetime, pd.Timestamp)):
         # イベント指定の場合：時刻まで含めて比較
         filtered_df = filtered_by_account_df[
@@ -223,12 +228,17 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
         "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
         "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
-        "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数", "2023年9月以前のおまけ分(無償SG RS外)"
+        "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数"
     ]
 
     for col in numeric_cols:
         if col in filtered_df.columns:
-            filtered_df[col] = pd.to_numeric(filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
+            # ハイフンとカンマを置換し、NaNを0に変換してから数値に変換
+            filtered_df[col] = pd.to_numeric(
+                filtered_df[col].astype(str)
+                .str.replace(",", "").replace("-", "0"),
+                errors='coerce'
+            ).fillna(0) # 変換できなかった値を0に
 
     
     if "ルームID" in filtered_df.columns and not filtered_df.empty:
