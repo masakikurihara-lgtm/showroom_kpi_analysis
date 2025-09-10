@@ -58,15 +58,17 @@ def clear_analysis_results():
 
 # --- UI入力セクション ---
 # ⑤ アカウントIDをパスワード形式で入力
+st.markdown("### アカウントID（全体平均等は mksp）", unsafe_allow_html=True)
 account_id = st.text_input(
-    "アカウントID（全体平均等は mksp）",
+    "",
     "",
     type="password"
 )
 
 # ① 分析方法の選択時に分析結果をクリア
+st.markdown("### 分析方法を選択", unsafe_allow_html=True)
 analysis_type = st.radio(
-    "分析方法を選択",
+    "",
     ('期間で指定', 'イベントで指定'),
     horizontal=True,
     key='analysis_type_selector',
@@ -85,11 +87,11 @@ selected_event_val = None
 if analysis_type == '期間で指定':
     default_end_date = today - timedelta(days=1)
     default_start_date = default_end_date - timedelta(days=30)
+    st.markdown("### 分析期間", unsafe_allow_html=True)
     selected_date_range_val = st.date_input(
-        "分析期間",
+        "",
         (default_start_date, default_end_date),
         max_value=today,
-        # 💡 ここを修正
         on_change=clear_analysis_results
     )
 else:  # 'イベントで指定'
@@ -101,17 +103,18 @@ else:  # 'イベントで指定'
                 event_names = user_events['イベント名'].unique().tolist()
                 if event_names:
                     # イベント変更時に分析結果をクリアするコールバックを追加
+                    st.markdown("### 分析するイベントを選択", unsafe_allow_html=True)
                     selected_event_val = st.selectbox(
-                        "分析するイベントを選択", 
+                        "",  
                         options=event_names,
                         on_change=clear_analysis_results
                     )
-                    
+                     
                     event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
                     if not event_details_to_link.empty:
                         start_time = event_details_to_link.iloc[0]['開始日時']
                         end_time = event_details_to_link.iloc[0]['終了日時']
-                        
+                         
                         # ご要望の修正: イベント期間の表示を太字で追加
                         if pd.notna(start_time) and pd.notna(end_time):
                             start_time_str = start_time.strftime('%Y/%m/%d %H:%M')
@@ -122,7 +125,7 @@ else:  # 'イベントで指定'
                         # 修正内容：イベントURLへのリンクを追加
                         if pd.notna(event_url):
                             st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
-                    
+                     
                     # ④ 注意書きの変更と配置
                     st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
