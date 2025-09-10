@@ -26,7 +26,7 @@ st.markdown(
 # 説明文
 st.markdown(
     "<p style='font-size:16px; text-align:center; color:#4b5563;'>"
-#    "分析方法を指定して、配信のパフォーマンスを分析します。"
+    # "分析方法を指定して、配信のパフォーマンスを分析します。"
     ""
     "</p>",
     unsafe_allow_html=True
@@ -100,16 +100,16 @@ else:  # 'イベントで指定'
                 if event_names:
                     # イベント変更時に分析結果をクリアするコールバックを追加
                     selected_event_val = st.selectbox(
-                        "分析するイベントを選択", 
+                        "分析するイベントを選択",
                         options=event_names,
                         on_change=clear_analysis_results
                     )
-                    
+
                     event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
                     if not event_details_to_link.empty:
                         start_time = event_details_to_link.iloc[0]['開始日時']
                         end_time = event_details_to_link.iloc[0]['終了日時']
-                        
+
                         # ご要望の修正: イベント期間の表示を太字で追加
                         if pd.notna(start_time) and pd.notna(end_time):
                             start_time_str = start_time.strftime('%Y/%m/%d %H:%M')
@@ -120,7 +120,7 @@ else:  # 'イベントで指定'
                         # 修正内容：イベントURLへのリンクを追加
                         if pd.notna(event_url):
                             st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
-                    
+
                     # ④ 注意書きの変更と配置
                     st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
@@ -137,58 +137,85 @@ else:  # 'イベントで指定'
 st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
 
-# データの読み込みと前処理関数
+# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+# 修正箇所: データの読み込みと前処理関数
+# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
 def load_and_preprocess_data(account_id, start_date, end_date):
     if not account_id:
         st.error("アカウントIDを入力してください。")
         return None, None
-    
+
     if start_date > end_date:
         st.error("開始日は終了日より前の日付を選択してください。")
         return None, None
-
-    # ② 時刻オブジェクトと日付オブジェクトを区別してループ用の日付を生成
-    loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
-    loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
-
-    all_dfs = []
-    current_date = loop_start_date
-    while current_date <= loop_end_date:
-        year = current_date.year
-        month = current_date.month
         
-        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+    # --- 修正点 1: 新しいURL形式でのデータ取得ロジック ---
+    # 分析期間の開始日を `YYYY-MM-DD` 形式の文字列に変換
+    base_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
+    start_date_str = base_date.strftime('%Y-%m-%d')
+    
+    all_dfs = []
+    page = 1
+    # ページが続く限りデータを取得するループ
+    while True:
+        # ページ番号を2桁のゼロ埋め形式でURLに含める (例: page01, page10, page99, page100)
+        # f"{page:02d}" は100以上の場合も正しく "100" となるため、2桁/3桁を意識する必要はありません。
+        url = f"https://mksoul-pro.com/showroom/kpi_csv/live_kpi_from_{start_date_str}_page{page:02d}.csv"
         
         try:
             response = requests.get(url)
+            # ページが存在しない場合 (404 Not Found)、データ取得を終了
+            if response.status_code == 404:
+                if page == 1:
+                    st.warning(f"指定された開始日のデータが見つかりませんでした。({url})")
+                break # ループを抜ける
+            
+            # 404以外のHTTPエラーが発生した場合に例外を発生させる
             response.raise_for_status()
+            
+            # CSVデータを読み込む (元のコードのロジックを流用)
             csv_text = response.content.decode('utf-8-sig')
             lines = csv_text.strip().split('\n')
+            
+            # ヘッダーのみ、または空のファイルの場合はスキップ
+            if len(lines) <= 1:
+                page += 1
+                continue
+
             header_line = lines[0]
             data_lines = lines[1:]
+            # 末尾に不要なカンマがある行に対応するための処理
             cleaned_data_lines = [','.join(line.split(',')[:-1]) for line in data_lines]
             cleaned_csv_text = header_line + '\n' + '\n'.join(cleaned_data_lines)
+            
             csv_data = io.StringIO(cleaned_csv_text)
             df = pd.read_csv(csv_data)
             df.columns = df.columns.str.strip().str.replace('"', '')
             all_dfs.append(df)
             
         except requests.exceptions.RequestException as e:
-            st.warning(f"{year}年{month}月のデータが見つかりませんでした。スキップします。")
+            st.warning(f"データ取得中にエラーが発生しました (URL: {url})。処理を中断します。エラー: {e}")
+            break # 通信エラーが発生した場合はループを中断
         except Exception as e:
-            st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
+            st.error(f"ページ {page} のCSVファイル処理中に予期せぬエラーが発生しました。詳細: {e}")
             return None, None
             
-        if current_date.month == 12:
-            current_date = date(current_date.year + 1, 1, 1)
-        else:
-            current_date = date(current_date.year, current_date.month + 1, 1)
+        # 次のページへ
+        page += 1
 
     if not all_dfs:
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
         return None, None
 
+    # 取得したすべてのデータフレームを結合
     combined_df = pd.concat(all_dfs, ignore_index=True)
+
+    # --- 修正点 2: 重複データの削除 ---
+    # 全ての列が完全に一致する行を削除
+    combined_df.drop_duplicates(inplace=True)
+
+
+    # --- 以降は既存のロジックをそのまま利用 ---
 
     if "配信日時" not in combined_df.columns:
         raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
@@ -203,13 +230,13 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     if isinstance(start_date, (datetime, pd.Timestamp)):
         # イベント指定の場合：時刻まで含めて比較
         filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"] >= start_date) & 
+            (filtered_by_account_df["配信日時"] >= start_date) &
             (filtered_by_account_df["配信日時"] <= end_date)
         ].copy()
     else:
         # 期間指定の場合：日付のみで比較
         filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"].dt.date >= start_date) & 
+            (filtered_by_account_df["配信日時"].dt.date >= start_date) &
             (filtered_by_account_df["配信日時"].dt.date <= end_date)
         ].copy()
 
@@ -230,13 +257,16 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         if col in filtered_df.columns:
             filtered_df[col] = pd.to_numeric(filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
 
-    
     if "ルームID" in filtered_df.columns and not filtered_df.empty:
         room_id = filtered_df["ルームID"].iloc[0]
     else:
         room_id = None
         
     return filtered_df, room_id
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+# 修正箇所ここまで
+# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
 
 def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6: return "早朝 (3-6時)"
@@ -291,7 +321,7 @@ if st.button("分析を実行"):
         else:
             event_df = fetch_event_data()
             event_details = event_df[
-                (event_df['アカウントID'] == account_id) & 
+                (event_df['アカウントID'] == account_id) &
                 (event_df['イベント名'] == selected_event_val)
             ]
             if not event_details.empty:
