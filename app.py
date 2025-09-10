@@ -26,7 +26,7 @@ st.markdown(
 # 説明文
 st.markdown(
     "<p style='font-size:16px; text-align:center; color:#4b5563;'>"
-    # "分析方法を指定して、配信のパフォーマンスを分析します。"
+#    "分析方法を指定して、配信のパフォーマンスを分析します。"
     ""
     "</p>",
     unsafe_allow_html=True
@@ -100,16 +100,16 @@ else:  # 'イベントで指定'
                 if event_names:
                     # イベント変更時に分析結果をクリアするコールバックを追加
                     selected_event_val = st.selectbox(
-                        "分析するイベントを選択",
+                        "分析するイベントを選択", 
                         options=event_names,
                         on_change=clear_analysis_results
                     )
-
+                    
                     event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
                     if not event_details_to_link.empty:
                         start_time = event_details_to_link.iloc[0]['開始日時']
                         end_time = event_details_to_link.iloc[0]['終了日時']
-
+                        
                         # ご要望の修正: イベント期間の表示を太字で追加
                         if pd.notna(start_time) and pd.notna(end_time):
                             start_time_str = start_time.strftime('%Y/%m/%d %H:%M')
@@ -120,7 +120,7 @@ else:  # 'イベントで指定'
                         # 修正内容：イベントURLへのリンクを追加
                         if pd.notna(event_url):
                             st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
-
+                    
                     # ④ 注意書きの変更と配置
                     st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
@@ -137,168 +137,106 @@ else:  # 'イベントで指定'
 st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
 
-# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-# 修正箇所: データの読み込みと前処理関数
-# ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-@st.cache_data(ttl=3600) # データのスキャンに時間がかかるためキャッシュ時間を延長
-def load_and_preprocess_data_source():
-    """
-    2014年1月から今月までのすべてのKPIデータソースをスキャンして読み込み、
-    一つのデータフレームに結合してキャッシュする関数。
-    ファイル名はYYYY-MM-01の形式で探索する。
-    """
+# データの読み込みと前処理関数
+def load_and_preprocess_data(account_id, start_date, end_date):
+    if not account_id:
+        st.error("アカウントIDを入力してください。")
+        return None, None
+    
+    if start_date > end_date:
+        st.error("開始日は終了日より前の日付を選択してください。")
+        return None, None
+
+    # ② 時刻オブジェクトと日付オブジェクトを区別してループ用の日付を生成
+    loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
+    loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
+
     all_dfs = []
-    
-    # データソースの探索を開始する固定日
-    search_start_date = date(2014, 1, 1)
-    # 探索の終了日（今日）
-    search_end_date = date.today()
-    
-    current_search_date = search_start_date
-    
-    # 2014年1月から今日の月まで1ヶ月ずつループ
-    while current_search_date <= search_end_date:
-        # ファイル名は常にYYYY-MM-01の形式
-        start_date_str = current_search_date.strftime('%Y-%m-01')
-        page = 1
+    current_date = loop_start_date
+    while current_date <= loop_end_date:
+        year = current_date.year
+        month = current_date.month
         
-        # ページが続く限りデータを取得する内部ループ
-        while True:
-            url = f"https://mksoul-pro.com/showroom/kpi_csv/live_kpi_from_{start_date_str}_page{page:02d}.csv"
+        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+        
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            csv_text = response.content.decode('utf-8-sig')
+            lines = csv_text.strip().split('\n')
+            header_line = lines[0]
+            data_lines = lines[1:]
+            cleaned_data_lines = [','.join(line.split(',')[:-1]) for line in data_lines]
+            cleaned_csv_text = header_line + '\n' + '\n'.join(cleaned_data_lines)
+            csv_data = io.StringIO(cleaned_csv_text)
+            df = pd.read_csv(csv_data)
+            df.columns = df.columns.str.strip().str.replace('"', '')
+            all_dfs.append(df)
             
-            try:
-                # GETリクエストを直接実行
-                response = requests.get(url, timeout=10)
-
-                # 404 Not Foundの場合、この月にはもうページがないと判断してループを抜ける
-                if response.status_code == 404:
-                    break
-                
-                # 404以外のHTTPエラーコードの場合、例外を発生させる
-                response.raise_for_status()
-
-                csv_text = response.content.decode('utf-8-sig')
-                if not csv_text or csv_text.isspace(): # 空のファイルなら次へ
-                    page += 1
-                    continue
-
-                lines = csv_text.strip().split('\n')
-                if len(lines) <= 1: # ヘッダーのみのファイルなら次へ
-                    page += 1
-                    continue
-
-                # 既存のCSV読み込み処理
-                header_line = lines[0]
-                data_lines = lines[1:]
-                cleaned_data_lines = [','.join(line.split(',')[:-1]) for line in data_lines if line]
-                cleaned_csv_text = header_line + '\n' + '\n'.join(cleaned_data_lines)
-                
-                csv_data = io.StringIO(cleaned_csv_text)
-                df = pd.read_csv(csv_data)
-                df.columns = df.columns.str.strip().str.replace('"', '')
-                all_dfs.append(df)
+        except requests.exceptions.RequestException as e:
+            st.warning(f"{year}年{month}月のデータが見つかりませんでした。スキップします。")
+        except Exception as e:
+            st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
+            return None, None
             
-            except requests.exceptions.RequestException as e:
-                # 接続エラーやタイムアウトが発生した場合、この月の処理を中断して次へ
-                st.warning(f"URLへのアクセス中にエラー発生: {url}。次の月の探索に移ります。")
-                break 
-            except Exception as e:
-                # CSVのパースエラーなど、予期せぬエラーが発生した場合、このページをスキップして次へ
-                st.warning(f"ファイル処理中にエラー発生: {url}。このページをスキップします。")
-                page += 1 # 無限ループを避けるためページを進める
-                continue
-                
-            page += 1 # 正常に処理できたら次のページへ
-            
-        # 次の月の1日へ移動
-        if current_search_date.month == 12:
-            current_search_date = date(current_search_date.year + 1, 1, 1)
+        if current_date.month == 12:
+            current_date = date(current_date.year + 1, 1, 1)
         else:
-            current_search_date = date(current_search_date.year, current_search_date.month + 1, 1)
+            current_date = date(current_date.year, current_date.month + 1, 1)
 
     if not all_dfs:
-        return None
+        st.error(f"選択された期間のデータが一つも見つかりませんでした。")
+        return None, None
 
-    # 取得したすべてのデータフレームを結合
     combined_df = pd.concat(all_dfs, ignore_index=True)
 
-    # 重複データの削除
-    combined_df.drop_duplicates(inplace=True)
-
-    # 日時形式と数値形式への変換
     if "配信日時" not in combined_df.columns:
-        st.error("CSVデータソースに '配信日時' 列が見つかりませんでした。")
-        return None
-    combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"], errors='coerce')
+        raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
+    combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
 
+    if account_id == "mksp":
+        filtered_by_account_df = combined_df.copy()
+    else:
+        filtered_by_account_df = combined_df[combined_df["アカウントID"] == account_id].copy()
+    
+    # ② 時刻オブジェクトと日付オブジェクトでフィルタリング方法を分岐
+    if isinstance(start_date, (datetime, pd.Timestamp)):
+        # イベント指定の場合：時刻まで含めて比較
+        filtered_df = filtered_by_account_df[
+            (filtered_by_account_df["配信日時"] >= start_date) & 
+            (filtered_by_account_df["配信日時"] <= end_date)
+        ].copy()
+    else:
+        # 期間指定の場合：日付のみで比較
+        filtered_df = filtered_by_account_df[
+            (filtered_by_account_df["配信日時"].dt.date >= start_date) & 
+            (filtered_by_account_df["配信日時"].dt.date <= end_date)
+        ].copy()
+
+
+    if filtered_df.empty:
+        st.warning(f"指定されたアカウントID（{account_id}）のデータが選択された期間に見つかりませんでした。")
+        return None, None
+
+    # 数値型に変換する列のリスト
     numeric_cols = [
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
         "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
         "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
         "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数"
     ]
+
     for col in numeric_cols:
-        if col in combined_df.columns:
-            # `coerce`でエラーをNaNに変換し、その後`fillna(0)`で0に置換
-            numeric_series = pd.to_numeric(combined_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
-            combined_df[col] = numeric_series.fillna(0)
+        if col in filtered_df.columns:
+            filtered_df[col] = pd.to_numeric(filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce')
 
-
-    return combined_df
-
-
-def load_and_preprocess_data(account_id, start_date, end_date):
-    if not account_id:
-        st.error("アカウントIDを入力してください。")
-        return None, None
-
-    if start_date > end_date:
-        st.error("開始日は終了日より前の日付を選択してください。")
-        return None, None
-        
-    # キャッシュされた全データを取得
-    with st.spinner("データソースを読み込んでいます..."):
-        source_df = load_and_preprocess_data_source()
-
-    if source_df is None or source_df.empty:
-        st.error(f"分析対象のデータが一つも見つかりませんでした。")
-        return None, None
-
-    # --- ユーザー指定の条件で絞り込み ---
-    # アカウントIDで絞り込み
-    if account_id == "mksp":
-        filtered_by_account_df = source_df.copy()
-    else:
-        filtered_by_account_df = source_df[source_df["アカウントID"] == account_id].copy()
-
-    # 期間で絞り込み
-    if isinstance(start_date, (datetime, pd.Timestamp)):
-        # イベント指定の場合：時刻まで含めて比較
-        filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"] >= start_date) &
-            (filtered_by_account_df["配信日時"] <= end_date)
-        ].copy()
-    else:
-        # 期間指定の場合：日付のみで比較
-        filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"].dt.date >= start_date) &
-            (filtered_by_account_df["配信日時"].dt.date <= end_date)
-        ].copy()
-
-    if filtered_df.empty:
-        st.warning(f"指定されたアカウントID（{account_id}）のデータが選択された期間に見つかりませんでした。")
-        return None, None
-
+    
     if "ルームID" in filtered_df.columns and not filtered_df.empty:
         room_id = filtered_df["ルームID"].iloc[0]
     else:
         room_id = None
         
     return filtered_df, room_id
-# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-# 修正箇所ここまで
-# ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
 
 def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6: return "早朝 (3-6時)"
@@ -353,7 +291,7 @@ if st.button("分析を実行"):
         else:
             event_df = fetch_event_data()
             event_details = event_df[
-                (event_df['アカウントID'] == account_id) &
+                (event_df['アカウントID'] == account_id) & 
                 (event_df['イベント名'] == selected_event_val)
             ]
             if not event_details.empty:
@@ -383,18 +321,18 @@ if st.session_state.get('run_analysis', False):
 
     if mksp_df is not None and not mksp_df.empty:
         # MK平均値と中央値を計算してセッションステートに保存
-        st.session_state.mk_avg_rate_visit = (mksp_df['初ルーム来訪者数'] / mksp_df['合計視聴数']).mean() * 100 if '初ルーム来訪者数' in mksp_df and '合計視聴数' in mksp_df and '合計視聴数' in mksp_df and mksp_df['合計視聴数'].sum() > 0 else 0
-        st.session_state.mk_median_rate_visit = (mksp_df['初ルーム来訪者数'] / mksp_df['合計視聴数']).median() * 100 if '初ルーム来訪者数' in mksp_df and '合計視聴数' in mksp_df and mksp_df['合計視聴数'].sum() > 0 else 0
-        st.session_state.mk_avg_rate_comment = (mksp_df['初コメント人数'] / mksp_df['コメント人数']).mean() * 100 if '初コメント人数' in mksp_df and 'コメント人数' in mksp_df and mksp_df['コメント人数'].sum() > 0 else 0
-        st.session_state.mk_median_rate_comment = (mksp_df['初コメント人数'] / mksp_df['コメント人数']).median() * 100 if '初コメント人数' in mksp_df and 'コメント人数' in mksp_df and mksp_df['コメント人数'].sum() > 0 else 0
-        st.session_state.mk_avg_rate_gift = (mksp_df['初ギフト人数'] / mksp_df['ギフト人数']).mean() * 100 if '初ギフト人数' in mksp_df and 'ギフト人数' in mksp_df and mksp_df['ギフト人数'].sum() > 0 else 0
-        st.session_state.mk_median_rate_gift = (mksp_df['初ギフト人数'] / mksp_df['ギフト人数']).median() * 100 if '初ギフト人数' in mksp_df and 'ギフト人数' in mksp_df and mksp_df['ギフト人数'].sum() > 0 else 0
-        st.session_state.mk_avg_rate_short_stay = (mksp_df['短時間滞在者数'] / mksp_df['視聴会員数']).mean() * 100 if '短時間滞在者数' in mksp_df and '視聴会員数' in mksp_df and mksp_df['視聴会員数'].sum() > 0 else 0
-        st.session_state.mk_median_rate_short_stay = (mksp_df['短時間滞在者数'] / mksp_df['視聴会員数']).median() * 100 if '短時間滞在者数' in mksp_df and '視聴会員数' in mksp_df and mksp_df['視聴会員数'].sum() > 0 else 0
-        st.session_state.mk_avg_rate_sg_gift = (mksp_df['期限あり/期限なしSGのギフティング数'] / mksp_df['ギフト数']).mean() * 100 if '期限あり/期限なしSGのギフティング数' in mksp_df and 'ギフト数' in mksp_df and mksp_df['ギフト数'].sum() > 0 else 0
-        st.session_state.mk_median_rate_sg_gift = (mksp_df['期限あり/期限なしSGのギフティング数'] / mksp_df['ギフト数']).median() * 100 if '期限あり/期限なしSGのギフティング数' in mksp_df and 'ギフト数' in mksp_df and mksp_df['ギフト数'].sum() > 0 else 0
-        st.session_state.mk_avg_rate_sg_person = (mksp_df['期限あり/期限なしSGのギフティング人数'] / mksp_df['ギフト人数']).mean() * 100 if '期限あり/期限なしSGのギフティング人数' in mksp_df and 'ギフト人数' in mksp_df and mksp_df['ギフト人数'].sum() > 0 else 0
-        st.session_state.mk_median_rate_sg_person = (mksp_df['期限あり/期限なしSGのギフティング人数'] / mksp_df['ギフト人数']).median() * 100 if '期限あり/期限なしSGのギフティング人数' in mksp_df and 'ギフト人数' in mksp_df and mksp_df['ギフト人数'].sum() > 0 else 0
+        st.session_state.mk_avg_rate_visit = (mksp_df['初ルーム来訪者数'] / mksp_df['合計視聴数']).mean() * 100 if '初ルーム来訪者数' in mksp_df and '合計視聴数' in mksp_df else 0
+        st.session_state.mk_median_rate_visit = (mksp_df['初ルーム来訪者数'] / mksp_df['合計視聴数']).median() * 100 if '初ルーム来訪者数' in mksp_df and '合計視聴数' in mksp_df else 0
+        st.session_state.mk_avg_rate_comment = (mksp_df['初コメント人数'] / mksp_df['コメント人数']).mean() * 100 if '初コメント人数' in mksp_df and 'コメント人数' in mksp_df else 0
+        st.session_state.mk_median_rate_comment = (mksp_df['初コメント人数'] / mksp_df['コメント人数']).median() * 100 if '初コメント人数' in mksp_df and 'コメント人数' in mksp_df else 0
+        st.session_state.mk_avg_rate_gift = (mksp_df['初ギフト人数'] / mksp_df['ギフト人数']).mean() * 100 if '初ギフト人数' in mksp_df and 'ギフト人数' in mksp_df else 0
+        st.session_state.mk_median_rate_gift = (mksp_df['初ギフト人数'] / mksp_df['ギフト人数']).median() * 100 if '初ギフト人数' in mksp_df and 'ギフト人数' in mksp_df else 0
+        st.session_state.mk_avg_rate_short_stay = (mksp_df['短時間滞在者数'] / mksp_df['視聴会員数']).mean() * 100 if '短時間滞在者数' in mksp_df and '視聴会員数' in mksp_df else 0
+        st.session_state.mk_median_rate_short_stay = (mksp_df['短時間滞在者数'] / mksp_df['視聴会員数']).median() * 100 if '短時間滞在者数' in mksp_df and '視聴会員数' in mksp_df else 0
+        st.session_state.mk_avg_rate_sg_gift = (mksp_df['期限あり/期限なしSGのギフティング数'] / mksp_df['ギフト数']).mean() * 100 if '期限あり/期限なしSGのギフティング数' in mksp_df and 'ギフト数' in mksp_df else 0
+        st.session_state.mk_median_rate_sg_gift = (mksp_df['期限あり/期限なしSGのギフティング数'] / mksp_df['ギフト数']).median() * 100 if '期限あり/期限なしSGのギフティング数' in mksp_df and 'ギフト数' in mksp_df else 0
+        st.session_state.mk_avg_rate_sg_person = (mksp_df['期限あり/期限なしSGのギフティング人数'] / mksp_df['ギフト人数']).mean() * 100 if '期限あり/期限なしSGのギフティング人数' in mksp_df and 'ギフト人数' in mksp_df else 0
+        st.session_state.mk_median_rate_sg_person = (mksp_df['期限あり/期限なしSGのギフティング人数'] / mksp_df['ギフト人数']).median() * 100 if '期限あり/期限なしSGのギフティング人数' in mksp_df and 'ギフト人数' in mksp_df else 0
 
 
     # ライバー個別のデータ読み込み
@@ -591,8 +529,6 @@ if st.session_state.get('run_analysis', False):
                 st.markdown(metric_html, unsafe_allow_html=True)
 
             st.markdown("<hr>", unsafe_allow_html=True)
-
-
 
             st.subheader("🎯 ヒット配信")
             st.info("特定の条件を満たしたパフォーマンスの高い配信をピックアップしています。")
