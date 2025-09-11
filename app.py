@@ -197,6 +197,20 @@ def load_all_data_with_progress(start_date, end_date):
         raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
     combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
 
+    # --- ここから追加・修正 ---
+    # 数値カラムを明示的に変換
+    numeric_cols = [
+        "獲得支援point", "合計視聴数", "コメント数", "フォロワー数",
+        "初ルーム来訪者数", "初コメント人数", "コメント人数", "初ギフト人数",
+        "ギフト人数", "短時間滞在者数", "視聴会員数", "期限あり/期限なしSGのギフティング数",
+        "期限あり/期限なしSGのギフティング人数", "ギフト数", "期限あり/期限なしSG総額",
+        "配信時間(分)",
+    ]
+    for col in numeric_cols:
+        if col in combined_df.columns:
+            combined_df[col] = pd.to_numeric(combined_df[col], errors='coerce').fillna(0)
+    # --- ここまで追加・修正 ---
+
     return combined_df
 
 def categorize_time_of_day_with_range(hour):
