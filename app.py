@@ -103,16 +103,16 @@ else:  # 'イベントで指定'
                 if event_names:
                     # イベント変更時に分析結果をクリアするコールバックを追加
                     selected_event_val = st.selectbox(
-                        "分析するイベントを選択", 
+                        "分析するイベントを選択",
                         options=event_names,
                         on_change=clear_analysis_results
                     )
-                    
+
                     event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
                     if not event_details_to_link.empty:
                         start_time = event_details_to_link.iloc[0]['開始日時']
                         end_time = event_details_to_link.iloc[0]['終了日時']
-                        
+
                         # ご要望の修正: イベント期間の表示を太字で追加
                         if pd.notna(start_time) and pd.notna(end_time):
                             start_time_str = start_time.strftime('%Y/%m/%d %H:%M')
@@ -123,7 +123,7 @@ else:  # 'イベントで指定'
                         # 修正内容：イベントURLへのリンクを追加
                         if pd.notna(event_url):
                             st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
-                    
+
                     # ④ 注意書きの変更と配置
                     st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
@@ -141,21 +141,13 @@ st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
 
 # データの読み込みと前処理関数
-# @st.cache_data(ttl=3600) # データのキャッシュを1時間保持
-def load_and_preprocess_data(account_id, start_date, end_date):
-    if not account_id:
-        st.error("アカウントIDを入力してください。")
-        return None, None
-    
-    if start_date > end_date:
-        st.error("開始日は終了日より前の日付を選択してください。")
-        return None, None
-
+def load_all_data_with_progress(start_date, end_date):
+    """
+    mkspと個人のアカウントのデータを単一の進捗バーで読み込む
+    """
     loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
     loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
 
-    all_dfs = []
-    
     # 読み込み対象の月をリストアップ
     target_months = []
     current_date_loop = loop_start_date
@@ -165,99 +157,47 @@ def load_and_preprocess_data(account_id, start_date, end_date):
             current_date_loop = date(current_date_loop.year + 1, 1, 1)
         else:
             current_date_loop = date(current_date_loop.year, current_date_loop.month + 1, 1)
-    
-    total_months = len(target_months)
-    
-    # st.statusを使用して、プログレスバーとステータスを統合
-    with st.status("データの読み込みを開始します...", expanded=True) as status_container:
-        for i, current_date in enumerate(target_months):
-            year = current_date.year
-            month = current_date.month
-            
-            # 各月の進捗メッセージを更新
-            status_container.update(label=f"📂 {year}年{month}月のデータを取得しています...")
-            
-            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
-            
-            try:
-                response = requests.get(url)
-                response.raise_for_status()
-                csv_data = io.StringIO(response.content.decode('utf-8-sig'))
-                
-                df = pd.read_csv(csv_data, on_bad_lines='skip')
-                
-                df.columns = df.columns.str.strip().str.replace('"', '')
-                all_dfs.append(df)
-            
-            except requests.exceptions.RequestException as e:
-                if e.response and e.response.status_code == 404:
-                    status_container.warning(f"⚠️ {year}年{month}月のデータが見つかりませんでした。スキップします。")
-                else:
-                    status_container.error(f"❌ データの取得中に予期せぬエラーが発生しました: {e}")
-                    status_container.update(label="データ読み込み失敗", state="error", expanded=False)
-                    return None, None
-            except Exception as e:
-                status_container.error(f"❌ CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
-                status_container.update(label="データ読み込み失敗", state="error", expanded=False)
-                return None, None
-                
-            # プログレスバーを更新
-            progress = (i + 1) / total_months
-            status_container.progress(progress, text=f"進捗: {progress * 100:.0f}%完了")
+
+    total_files_to_load = len(target_months)
+    all_dfs = []
+    current_progress_step = 0
+
+    status_label = "データ読み込み中..."
+    progress_bar = st.progress(0, text=status_label)
+
+    # 全体データを読み込む
+    for i, current_date in enumerate(target_months):
+        year = current_date.year
+        month = current_date.month
+        progress_bar.progress((current_progress_step + 1) / total_files_to_load, text=f"📂 全体データ ({year}年{month}月) を取得しています...")
+        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+            df = pd.read_csv(csv_data, on_bad_lines='skip')
+            df.columns = df.columns.str.strip().str.replace('"', '')
+            all_dfs.append(df)
+        except Exception:
+            st.warning(f"⚠️ 全体データ ({year}年{month}月) が見つかりませんでした。スキップします。")
+        current_progress_step += 1
+        progress_bar.progress(current_progress_step / total_files_to_load, text=f"📂 全体データ ({year}年{month}月) を取得しました。")
 
     if not all_dfs:
-        st.error(f"選択された期間のデータが一つも見つかりませんでした。")
-        status_container.update(label="データが見つかりませんでした", state="error", expanded=False)
-        return None, None
-    
-    # 最終的なステータスを完了状態にする
-    status_container.update(label="データ読み込み完了", state="complete", expanded=False)
+        st.error("指定された期間のデータが一つも見つかりませんでした。")
+        progress_bar.progress(1.0, text="データ読み込み失敗")
+        return None
 
-    # ... (以降のデータ前処理コードは変更なし)
+    progress_bar.progress(1.0, text="データ読み込み完了")
+    time.sleep(1)
+    progress_bar.empty()
+
     combined_df = pd.concat(all_dfs, ignore_index=True)
     if "配信日時" not in combined_df.columns:
         raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
     combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
 
-    if account_id == "mksp":
-        filtered_by_account_df = combined_df.copy()
-    else:
-        filtered_by_account_df = combined_df[combined_df["アカウントID"] == account_id].copy()
-
-    if isinstance(start_date, (datetime, pd.Timestamp)):
-        filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"] >= start_date) & 
-            (filtered_by_account_df["配信日時"] <= end_date)
-        ].copy()
-    else:
-        filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"].dt.date >= start_date) & 
-            (filtered_by_account_df["配信日時"].dt.date <= end_date)
-        ].copy()
-
-    if filtered_df.empty:
-        st.warning(f"指定されたアカウントID（{account_id}）のデータが選択された期間に見つかりませんでした。")
-        return None, None
-
-    numeric_cols = [
-        "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
-        "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
-        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
-        "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数"
-    ]
-    for col in numeric_cols:
-        if col in filtered_df.columns:
-            filtered_df[col] = pd.to_numeric(
-                filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"),
-                errors='coerce'
-            ).fillna(0)
-
-    if "ルームID" in filtered_df.columns and not filtered_df.empty:
-        room_id = filtered_df["ルームID"].iloc[0]
-    else:
-        room_id = None
-        
-    return filtered_df, room_id
+    return combined_df
 
 def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6: return "早朝 (3-6時)"
@@ -279,13 +219,13 @@ def merge_event_data(df_to_merge, event_df):
     def find_event_name(row):
         account_id = str(row['アカウントID'])
         stream_time = row['配信日時']
-        
+
         matching_events = event_df[
             (event_df['アカウントID'] == account_id) &
             (event_df['開始日時'] <= stream_time) &
             (event_df['終了日時'] >= stream_time)
         ]
-        
+
         if not matching_events.empty:
             return matching_events.iloc[0]['イベント名']
         return ""
@@ -303,7 +243,7 @@ if st.button("分析を実行"):
             final_start_date, final_end_date = selected_date_range_val
         else:
             st.error("有効な期間が選択されていません。")
-    
+
     else:  # 'イベントで指定'
         if not account_id:
             st.error("アカウントIDが入力されていません。")
@@ -312,7 +252,7 @@ if st.button("分析を実行"):
         else:
             event_df = fetch_event_data()
             event_details = event_df[
-                (event_df['アカウントID'] == account_id) & 
+                (event_df['アカウントID'] == account_id) &
                 (event_df['イベント名'] == selected_event_val)
             ]
             if not event_details.empty:
@@ -336,12 +276,17 @@ if 'run_analysis' not in st.session_state:
 if st.session_state.get('run_analysis', False):
     start_date = st.session_state.start_date
     end_date = st.session_state.end_date
-        
-    # 全体（mksp）のデータを最初に読み込み、計算を一度だけ行う
-    mksp_df, _ = load_and_preprocess_data("mksp", start_date, end_date)
 
-    if mksp_df is not None and not mksp_df.empty:
-        
+    # 新しい統合された関数を呼び出す
+    combined_df = load_all_data_with_progress(start_date, end_date)
+
+    if combined_df is not None and not combined_df.empty:
+        # 全体（mksp）のデータをフィルタリング
+        mksp_df = combined_df.copy()
+
+        # ライバー個別のデータをフィルタリング
+        df = combined_df[combined_df["アカウントID"] == account_id].copy()
+
         # ゼロ除算を避けるための修正
         # 初ルーム来訪者率
         # 合計視聴数が0より大きい行のみで計算
@@ -380,229 +325,227 @@ if st.session_state.get('run_analysis', False):
         st.session_state.mk_median_rate_sg_person = (filtered_df_sg_person['期限あり/期限なしSGのギフティング人数'] / filtered_df_sg_person['ギフト人数']).median() * 100 if not filtered_df_sg_person.empty else 0
 
 
-    # ライバー個別のデータ読み込み
-    df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
-    
-    if df is not None and not df.empty:
-        st.success("データの読み込みが完了しました！")
-        
-        if account_id == "mksp":
-            st.subheader("💡 全ライバーの集計データ")
-            st.info("このビューでは、個人関連データは表示されません。")
+        if df is not None and not df.empty:
+            st.success("データの読み込みが完了しました！")
             
-            total_support_points = int(df["獲得支援point"].sum())
-            total_viewers = int(df["合計視聴数"].sum())
-            total_comments = int(df["コメント数"].sum())
-            
-            st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
-            st.markdown(f"**合計視聴数:** {total_viewers:,} 人")
-            st.markdown(f"**合計コメント数:** {total_comments:,} 件")
+            if account_id == "mksp":
+                st.subheader("💡 全ライバーの集計データ")
+                st.info("このビューでは、個人関連データは表示されません。")
+                
+                total_support_points = int(df["獲得支援point"].sum())
+                total_viewers = int(df["合計視聴数"].sum())
+                total_comments = int(df["コメント数"].sum())
+                
+                st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
+                st.markdown(f"**合計視聴数:** {total_viewers:,} 人")
+                st.markdown(f"**合計コメント数:** {total_comments:,} 件")
 
-            st.subheader("📊 時間帯別パフォーマンス分析 (平均値)")
-            st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
-            
-            df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
-            
-            time_of_day_kpis_mean = df.groupby('時間帯').agg({
-                '獲得支援point': 'mean',
-                '合計視聴数': 'mean',
-                'コメント数': 'mean'
-            }).reset_index()
+                st.subheader("📊 時間帯別パフォーマンス分析 (平均値)")
+                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
+                
+                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
+                
+                time_of_day_kpis_mean = df.groupby('時間帯').agg({
+                    '獲得支援point': 'mean',
+                    '合計視聴数': 'mean',
+                    'コメント数': 'mean'
+                }).reset_index()
 
-            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
-            time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
-            time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
-            
-            time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
+                time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
+                time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
+                
+                time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
 
-            col1, col2, col3 = st.columns(3)
+                col1, col2, col3 = st.columns(3)
 
-            with col1:
-                fig1 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['獲得支援point'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#1f77b4', name='獲得支援point'))
-                fig1.update_layout(title_text="獲得支援point", title_font_size=16, yaxis=dict(title="獲得支援point", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig1, use_container_width=True)
-            with col2:
-                fig2 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['合計視聴数'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#ff7f0e', name='合計視聴数'))
-                fig2.update_layout(title_text="合計視聴数", title_font_size=16, yaxis=dict(title="合計視聴数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig2, use_container_width=True)
-            with col3:
-                fig3 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['コメント数'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#2ca02c', name='コメント数'))
-                fig3.update_layout(title_text="コメント数", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig3, use_container_width=True)
+                with col1:
+                    fig1 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['獲得支援point'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#1f77b4', name='獲得支援point'))
+                    fig1.update_layout(title_text="獲得支援point", title_font_size=16, yaxis=dict(title="獲得支援point", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig1, use_container_width=True)
+                with col2:
+                    fig2 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['合計視聴数'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#ff7f0e', name='合計視聴数'))
+                    fig2.update_layout(title_text="合計視聴数", title_font_size=16, yaxis=dict(title="合計視聴数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig2, use_container_width=True)
+                with col3:
+                    fig3 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['コメント数'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#2ca02c', name='コメント数'))
+                    fig3.update_layout(title_text="コメント数", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig3, use_container_width=True)
 
-            st.subheader("📊 時間帯別パフォーマンス分析 (中央値)")
-            st.info("※ このグラフは、各時間帯に配信した際の各KPIの**中央値**を示しています。突出した値の影響を受けにくく、一般的な傾向を把握するのに役立ちます。棒上の数字は、その時間帯の配信件数です。")
-            
-            time_of_day_kpis_median = df.groupby('時間帯').agg({'獲得支援point': 'median', '合計視聴数': 'median', 'コメント数': 'median'}).reset_index()
-            time_of_day_kpis_median['時間帯'] = pd.Categorical(time_of_day_kpis_median['時間帯'], categories=time_of_day_order, ordered=True)
-            time_of_day_kpis_median = time_of_day_kpis_median.sort_values('時間帯')
-            
-            col4, col5, col6 = st.columns(3)
-            
-            with col4:
-                fig4 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['獲得支援point'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#1f77b4', name='獲得支援point'))
-                fig4.update_layout(title_text="獲得支援point (中央値)", title_font_size=16, yaxis=dict(title="獲得支援point", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig4, use_container_width=True)
-            with col5:
-                fig5 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['合計視聴数'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#ff7f0e', name='合計視聴数'))
-                fig5.update_layout(title_text="合計視聴数 (中央値)", title_font_size=16, yaxis=dict(title="合計視聴数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig5, use_container_width=True)
-            with col6:
-                fig6 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['コメント数'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#2ca02c', name='コメント数'))
-                fig6.update_layout(title_text="コメント数 (中央値)", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig6, use_container_width=True)
-            
-        else: # 個別アカウントIDの場合
-            st.subheader("📈 主要KPIの推移")
-            df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df_sorted_asc["配信日時"], y=df_sorted_asc["獲得支援point"], name="獲得支援point", mode='lines+markers', marker=dict(symbol='circle')))
-            fig.add_trace(go.Scatter(x=df_sorted_asc["配信日時"], y=df_sorted_asc["配信時間(分)"], name="配信時間(分)", mode='lines+markers', yaxis="y2", marker=dict(symbol='square')))
-            fig.add_trace(go.Scatter(x=df_sorted_asc["配信日時"], y=df_sorted_asc["合計視聴数"], name="合計視聴数", mode='lines+markers', yaxis="y2", marker=dict(symbol='star')))
-            fig.update_layout(title="KPIの推移（配信時間別）", xaxis=dict(title="配信日時"), yaxis=dict(title="獲得支援point", side="left", showgrid=False), yaxis2=dict(title="配信時間・視聴数", overlaying="y", side="right"), legend=dict(x=0, y=1.1, orientation="h"), hovermode="x unified")
-            st.plotly_chart(fig, use_container_width=True)
-            
-            st.subheader("📊 時間帯別パフォーマンス分析 (平均値)")
-            st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
-            df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
-            time_of_day_kpis_mean = df.groupby('時間帯').agg({'獲得支援point': 'mean', '合計視聴数': 'mean', 'コメント数': 'mean'}).reset_index()
-            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
-            time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
-            time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
-            time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                fig1 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['獲得支援point'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#1f77b4', name='獲得支援point'))
-                fig1.update_layout(title_text="獲得支援point", title_font_size=16, yaxis=dict(title="獲得支援point", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig1, use_container_width=True)
-            with col2:
-                fig2 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['合計視聴数'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#ff7f0e', name='合計視聴数'))
-                fig2.update_layout(title_text="合計視聴数", title_font_size=16, yaxis=dict(title="合計視聴数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig2, use_container_width=True)
-            with col3:
-                fig3 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['コメント数'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#2ca02c', name='コメント数'))
-                fig3.update_layout(title_text="コメント数", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig3, use_container_width=True)
+                st.subheader("📊 時間帯別パフォーマンス分析 (中央値)")
+                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**中央値**を示しています。突出した値の影響を受けにくく、一般的な傾向を把握するのに役立ちます。棒上の数字は、その時間帯の配信件数です。")
+                
+                time_of_day_kpis_median = df.groupby('時間帯').agg({'獲得支援point': 'median', '合計視聴数': 'median', 'コメント数': 'median'}).reset_index()
+                time_of_day_kpis_median['時間帯'] = pd.Categorical(time_of_day_kpis_median['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis_median = time_of_day_kpis_median.sort_values('時間帯')
+                
+                col4, col5, col6 = st.columns(3)
+                
+                with col4:
+                    fig4 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['獲得支援point'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#1f77b4', name='獲得支援point'))
+                    fig4.update_layout(title_text="獲得支援point (中央値)", title_font_size=16, yaxis=dict(title="獲得支援point", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig4, use_container_width=True)
+                with col5:
+                    fig5 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['合計視聴数'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#ff7f0e', name='合計視聴数'))
+                    fig5.update_layout(title_text="合計視聴数 (中央値)", title_font_size=16, yaxis=dict(title="合計視聴数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig5, use_container_width=True)
+                with col6:
+                    fig6 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['コメント数'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#2ca02c', name='コメント数'))
+                    fig6.update_layout(title_text="コメント数 (中央値)", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig6, use_container_width=True)
+                
+            else: # 個別アカウントIDの場合
+                st.subheader("📈 主要KPIの推移")
+                df_sorted_asc = df.sort_values(by="配信日時", ascending=True).copy()
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=df_sorted_asc["配信日時"], y=df_sorted_asc["獲得支援point"], name="獲得支援point", mode='lines+markers', marker=dict(symbol='circle')))
+                fig.add_trace(go.Scatter(x=df_sorted_asc["配信日時"], y=df_sorted_asc["配信時間(分)"], name="配信時間(分)", mode='lines+markers', yaxis="y2", marker=dict(symbol='square')))
+                fig.add_trace(go.Scatter(x=df_sorted_asc["配信日時"], y=df_sorted_asc["合計視聴数"], name="合計視聴数", mode='lines+markers', yaxis="y2", marker=dict(symbol='star')))
+                fig.update_layout(title="KPIの推移（配信時間別）", xaxis=dict(title="配信日時"), yaxis=dict(title="獲得支援point", side="left", showgrid=False), yaxis2=dict(title="配信時間・視聴数", overlaying="y", side="right"), legend=dict(x=0, y=1.1, orientation="h"), hovermode="x unified")
+                st.plotly_chart(fig, use_container_width=True)
+                
+                st.subheader("📊 時間帯別パフォーマンス分析 (平均値)")
+                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
+                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
+                time_of_day_kpis_mean = df.groupby('時間帯').agg({'獲得支援point': 'mean', '合計視聴数': 'mean', 'コメント数': 'mean'}).reset_index()
+                time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
+                time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
+                time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    fig1 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['獲得支援point'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#1f77b4', name='獲得支援point'))
+                    fig1.update_layout(title_text="獲得支援point", title_font_size=16, yaxis=dict(title="獲得支援point", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig1, use_container_width=True)
+                with col2:
+                    fig2 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['合計視聴数'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#ff7f0e', name='合計視聴数'))
+                    fig2.update_layout(title_text="合計視聴数", title_font_size=16, yaxis=dict(title="合計視聴数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig2, use_container_width=True)
+                with col3:
+                    fig3 = go.Figure(go.Bar(x=time_of_day_kpis_mean['時間帯'], y=time_of_day_kpis_mean['コメント数'], text=time_of_day_counts.loc[time_of_day_kpis_mean['時間帯']], textposition='auto', marker_color='#2ca02c', name='コメント数'))
+                    fig3.update_layout(title_text="コメント数", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig3, use_container_width=True)
 
-            st.subheader("📊 時間帯別パフォーマンス分析 (中央値)")
-            st.info("※ このグラフは、各時間帯に配信した際の各KPIの**中央値**を示しています。突出した値の影響を受けにくく、一般的な傾向を把握するのに役立ちます。棒上の数字は、その時間帯の配信件数です。")
-            time_of_day_kpis_median = df.groupby('時間帯').agg({'獲得支援point': 'median', '合計視聴数': 'median', 'コメント数': 'median'}).reset_index()
-            time_of_day_kpis_median['時間帯'] = pd.Categorical(time_of_day_kpis_median['時間帯'], categories=time_of_day_order, ordered=True)
-            time_of_day_kpis_median = time_of_day_kpis_median.sort_values('時間帯')
-            col4, col5, col6 = st.columns(3)
-            with col4:
-                fig4 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['獲得支援point'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#1f77b4', name='獲得支援point'))
-                fig4.update_layout(title_text="獲得支援point (中央値)", title_font_size=16, yaxis=dict(title="獲得支援point", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig4, use_container_width=True)
-            with col5:
-                fig5 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['合計視聴数'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#ff7f0e', name='合計視聴数'))
-                fig5.update_layout(title_text="合計視聴数 (中央値)", title_font_size=16, yaxis=dict(title="合計視聴数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig5, use_container_width=True)
-            with col6:
-                fig6 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['コメント数'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#2ca02c', name='コメント数'))
-                fig6.update_layout(title_text="コメント数 (中央値)", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
-                st.plotly_chart(fig6, use_container_width=True)
-            
-            st.subheader("📝 配信ごとの詳細データ")
-            df_display = df.sort_values(by="配信日時", ascending=False).copy()
-            event_df_master = fetch_event_data()
-            df_display = merge_event_data(df_display, event_df_master)
+                st.subheader("📊 時間帯別パフォーマンス分析 (中央値)")
+                st.info("※ このグラフは、各時間帯に配信した際の各KPIの**中央値**を示しています。突出した値の影響を受けにくく、一般的な傾向を把握するのに役立ちます。棒上の数字は、その時間帯の配信件数です。")
+                time_of_day_kpis_median = df.groupby('時間帯').agg({'獲得支援point': 'median', '合計視聴数': 'median', 'コメント数': 'median'}).reset_index()
+                time_of_day_kpis_median['時間帯'] = pd.Categorical(time_of_day_kpis_median['時間帯'], categories=time_of_day_order, ordered=True)
+                time_of_day_kpis_median = time_of_day_kpis_median.sort_values('時間帯')
+                col4, col5, col6 = st.columns(3)
+                with col4:
+                    fig4 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['獲得支援point'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#1f77b4', name='獲得支援point'))
+                    fig4.update_layout(title_text="獲得支援point (中央値)", title_font_size=16, yaxis=dict(title="獲得支援point", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig4, use_container_width=True)
+                with col5:
+                    fig5 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['合計視聴数'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#ff7f0e', name='合計視聴数'))
+                    fig5.update_layout(title_text="合計視聴数 (中央値)", title_font_size=16, yaxis=dict(title="合計視聴数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig5, use_container_width=True)
+                with col6:
+                    fig6 = go.Figure(go.Bar(x=time_of_day_kpis_median['時間帯'], y=time_of_day_kpis_median['コメント数'], text=time_of_day_counts.loc[time_of_day_kpis_median['時間帯']], textposition='auto', marker_color='#2ca02c', name='コメント数'))
+                    fig6.update_layout(title_text="コメント数 (中央値)", title_font_size=16, yaxis=dict(title="コメント数", title_font_size=14), font=dict(size=12), height=400, margin=dict(t=50, b=0, l=40, r=40))
+                    st.plotly_chart(fig6, use_container_width=True)
+                
+                st.subheader("📝 配信ごとの詳細データ")
+                df_display = df.sort_values(by="配信日時", ascending=False).copy()
+                event_df_master = fetch_event_data()
+                df_display = merge_event_data(df_display, event_df_master)
 
-            # ③ 時刻のフォーマットを変更
-            df_display_formatted = df_display.copy()
-            df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(df_display_formatted, hide_index=True)
-            
-            st.subheader("📝 全体サマリー")
-            total_support_points = int(df_display["獲得支援point"].sum())
-            if "フォロワー数" in df_display.columns and not df_display.empty:
-                df_sorted_by_date = df_display.sort_values(by="配信日時")
-                if not df_sorted_by_date.empty:
-                    final_followers = int(df_sorted_by_date["フォロワー数"].iloc[-1])
-                    initial_followers = int(df_sorted_by_date["フォロワー数"].iloc[0])
-                    total_follower_increase = final_followers - initial_followers
-                    st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
-                    st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
-            st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
+                # ③ 時刻のフォーマットを変更
+                df_display_formatted = df_display.copy()
+                df_display_formatted['配信日時'] = df_display_formatted['配信日時'].dt.strftime('%Y-%m-%d %H:%M')
+                st.dataframe(df_display_formatted, hide_index=True)
+                
+                st.subheader("📝 全体サマリー")
+                total_support_points = int(df_display["獲得支援point"].sum())
+                if "フォロワー数" in df_display.columns and not df_display.empty:
+                    df_sorted_by_date = df_display.sort_values(by="配信日時")
+                    if not df_sorted_by_date.empty:
+                        final_followers = int(df_sorted_by_date["フォロワー数"].iloc[-1])
+                        initial_followers = int(df_sorted_by_date["フォロワー数"].iloc[0])
+                        total_follower_increase = final_followers - initial_followers
+                        st.markdown(f"**フォロワー純増数:** {total_follower_increase:,} 人")
+                        st.markdown(f"**最終フォロワー数:** {final_followers:,} 人")
+                st.markdown(f"**合計獲得支援ポイント:** {total_support_points:,} pt")
 
-            st.subheader("📊 その他数値分析")
-            row1_col1, row1_col2, row1_col3 = st.columns(3)
-            row2_col1, row2_col2, row2_col3 = st.columns(3)
-            metric_html_style = """<style>.stMetric-container{background-color:transparent;border:none;padding-bottom:20px;}.metric-label{font-size:16px;font-weight:600;color:#000;margin-bottom:-5px;}.metric-value{font-size:32px;font-weight:700;color:#1f77b4;}.metric-caption{font-size:12px;color:#a0a0a0;margin-top:-5px;}.metric-help{font-size:12px;color:#808080;margin-top:10px;line-height:1.5}</style>"""
-            st.markdown(metric_html_style, unsafe_allow_html=True)
-            with row1_col1:
-                first_time_df = df_display.dropna(subset=['初ルーム来訪者数', '合計視聴数'])
-                total_members_for_first_time = first_time_df["合計視聴数"].sum()
-                first_time_visitors = first_time_df["初ルーム来訪者数"].sum()
-                first_time_rate = f"{(first_time_visitors / total_members_for_first_time * 100):.1f}%" if total_members_for_first_time > 0 else "0%"
-                metric_html = f"""<div class="stMetric-container"><div class="metric-label">初見訪問者率</div><div class="metric-value">{first_time_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_visit', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_visit', 0):.1f}%）</div><div class="metric-help">合計視聴数に対する初ルーム来訪者数の割合です。</div></div>"""
-                st.markdown(metric_html, unsafe_allow_html=True)
-            with row1_col2:
-                comment_df = df_display.dropna(subset=['初コメント人数', 'コメント人数'])
-                total_commenters = comment_df["コメント人数"].sum()
-                first_time_commenters = comment_df["初コメント人数"].sum()
-                first_comment_rate = f"{(first_time_commenters / total_commenters * 100):.1f}%" if total_commenters > 0 else "0%"
-                metric_html = f"""<div class="stMetric-container"><div class="metric-label">初コメント率</div><div class="metric-value">{first_comment_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_comment', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_comment', 0):.1f}%）</div><div class="metric-help">合計コメント人数に対する初コメント会員数の割合です。</div></div>"""
-                st.markdown(metric_html, unsafe_allow_html=True)
-            with row1_col3:
-                gift_df = df_display.dropna(subset=['初ギフト人数', 'ギフト人数'])
-                total_gifters = gift_df["ギフト人数"].sum()
-                first_time_gifters = gift_df["初ギフト人数"].sum()
-                first_gift_rate = f"{(first_time_gifters / total_gifters * 100):.1f}%" if total_gifters > 0 else "0%"
-                metric_html = f"""<div class="stMetric-container"><div class="metric-label">初ギフト率</div><div class="metric-value">{first_gift_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_gift', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_gift', 0):.1f}%）</div><div class="metric-help">合計ギフト会員数に対する初ギフト会員数の割合です。</div></div>"""
-                st.markdown(metric_html, unsafe_allow_html=True)
-            with row2_col1:
-                short_stay_df = df_display.dropna(subset=['短時間滞在者数', '視聴会員数'])
-                total_viewers_for_short_stay = short_stay_df["視聴会員数"].sum()
-                short_stay_visitors = short_stay_df["短時間滞在者数"].sum()
-                short_stay_rate = f"{(short_stay_visitors / total_viewers_for_short_stay * 100):.1f}%" if total_viewers_for_short_stay > 0 else "0%"
-                metric_html = f"""<div class="stMetric-container"><div class="metric-label">短時間滞在者率</div><div class="metric-value">{short_stay_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_short_stay', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_short_stay', 0):.1f}%）</div><div class="metric-help">視聴会員数に対する滞在時間が1分未満の会員数の割合です。</div></div>"""
-                st.markdown(metric_html, unsafe_allow_html=True)
-            with row2_col2:
-                sg_gift_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング数', 'ギフト数'])
-                total_gifts = sg_gift_df["ギフト数"].sum()
-                total_sg_gifts = sg_gift_df["期限あり/期限なしSGのギフティング数"].sum()
-                sg_gift_rate = f"{(total_sg_gifts / total_gifts * 100):.1f}%" if total_gifts > 0 else "0%"
-                metric_html = f"""<div class="stMetric-container"><div class="metric-label">SGギフト数率</div><div class="metric-value">{sg_gift_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_sg_gift', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_sg_gift', 0):.1f}%）</div><div class="metric-help">ギフト総数に対するSGギフト数の割合です。</div></div>"""
-                st.markdown(metric_html, unsafe_allow_html=True)
-            with row2_col3:
-                sg_person_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング人数', 'ギフト人数'])
-                total_gifters = sg_person_df["ギフト人数"].sum()
-                total_sg_gifters = sg_person_df["期限あり/期限なしSGのギフティング人数"].sum()
-                sg_person_rate = f"{(total_sg_gifters / total_gifters * 100):.1f}%" if total_gifters > 0 else "0%"
-                metric_html = f"""<div class="stMetric-container"><div class="metric-label">SGギフト人数率</div><div class="metric-value">{sg_person_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_sg_person', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_sg_person', 0):.1f}%）</div><div class="metric-help">ギフト人数総数に対するSGギフト人数の割合です。</div></div>"""
-                st.markdown(metric_html, unsafe_allow_html=True)
+                st.subheader("📊 その他数値分析")
+                row1_col1, row1_col2, row1_col3 = st.columns(3)
+                row2_col1, row2_col2, row2_col3 = st.columns(3)
+                metric_html_style = """<style>.stMetric-container{background-color:transparent;border:none;padding-bottom:20px;}.metric-label{font-size:16px;font-weight:600;color:#000;margin-bottom:-5px;}.metric-value{font-size:32px;font-weight:700;color:#1f77b4;}.metric-caption{font-size:12px;color:#a0a0a0;margin-top:-5px;}.metric-help{font-size:12px;color:#808080;margin-top:10px;line-height:1.5}</style>"""
+                st.markdown(metric_html_style, unsafe_allow_html=True)
+                with row1_col1:
+                    first_time_df = df_display.dropna(subset=['初ルーム来訪者数', '合計視聴数'])
+                    total_members_for_first_time = first_time_df["合計視聴数"].sum()
+                    first_time_visitors = first_time_df["初ルーム来訪者数"].sum()
+                    first_time_rate = f"{(first_time_visitors / total_members_for_first_time * 100):.1f}%" if total_members_for_first_time > 0 else "0%"
+                    metric_html = f"""<div class="stMetric-container"><div class="metric-label">初見訪問者率</div><div class="metric-value">{first_time_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_visit', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_visit', 0):.1f}%）</div><div class="metric-help">合計視聴数に対する初ルーム来訪者数の割合です。</div></div>"""
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                with row1_col2:
+                    comment_df = df_display.dropna(subset=['初コメント人数', 'コメント人数'])
+                    total_commenters = comment_df["コメント人数"].sum()
+                    first_time_commenters = comment_df["初コメント人数"].sum()
+                    first_comment_rate = f"{(first_time_commenters / total_commenters * 100):.1f}%" if total_commenters > 0 else "0%"
+                    metric_html = f"""<div class="stMetric-container"><div class="metric-label">初コメント率</div><div class="metric-value">{first_comment_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_comment', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_comment', 0):.1f}%）</div><div class="metric-help">合計コメント人数に対する初コメント会員数の割合です。</div></div>"""
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                with row1_col3:
+                    gift_df = df_display.dropna(subset=['初ギフト人数', 'ギフト人数'])
+                    total_gifters = gift_df["ギフト人数"].sum()
+                    first_time_gifters = gift_df["初ギフト人数"].sum()
+                    first_gift_rate = f"{(first_time_gifters / total_gifters * 100):.1f}%" if total_gifters > 0 else "0%"
+                    metric_html = f"""<div class="stMetric-container"><div class="metric-label">初ギフト率</div><div class="metric-value">{first_gift_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_gift', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_gift', 0):.1f}%）</div><div class="metric-help">合計ギフト会員数に対する初ギフト会員数の割合です。</div></div>"""
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                with row2_col1:
+                    short_stay_df = df_display.dropna(subset=['短時間滞在者数', '視聴会員数'])
+                    total_viewers_for_short_stay = short_stay_df["視聴会員数"].sum()
+                    short_stay_visitors = short_stay_df["短時間滞在者数"].sum()
+                    short_stay_rate = f"{(short_stay_visitors / total_viewers_for_short_stay * 100):.1f}%" if total_viewers_for_short_stay > 0 else "0%"
+                    metric_html = f"""<div class="stMetric-container"><div class="metric-label">短時間滞在者率</div><div class="metric-value">{short_stay_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_short_stay', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_short_stay', 0):.1f}%）</div><div class="metric-help">視聴会員数に対する滞在時間が1分未満の会員数の割合です。</div></div>"""
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                with row2_col2:
+                    sg_gift_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング数', 'ギフト数'])
+                    total_gifts = sg_gift_df["ギフト数"].sum()
+                    total_sg_gifts = sg_gift_df["期限あり/期限なしSGのギフティング数"].sum()
+                    sg_gift_rate = f"{(total_sg_gifts / total_gifts * 100):.1f}%" if total_gifts > 0 else "0%"
+                    metric_html = f"""<div class="stMetric-container"><div class="metric-label">SGギフト数率</div><div class="metric-value">{sg_gift_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_sg_gift', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_sg_gift', 0):.1f}%）</div><div class="metric-help">ギフト総数に対するSGギフト数の割合です。</div></div>"""
+                    st.markdown(metric_html, unsafe_allow_html=True)
+                with row2_col3:
+                    sg_person_df = df_display.dropna(subset=['期限あり/期限なしSGのギフティング人数', 'ギフト人数'])
+                    total_gifters = sg_person_df["ギフト人数"].sum()
+                    total_sg_gifters = sg_person_df["期限あり/期限なしSGのギフティング人数"].sum()
+                    sg_person_rate = f"{(total_sg_gifters / total_gifters * 100):.1f}%" if total_gifters > 0 else "0%"
+                    metric_html = f"""<div class="stMetric-container"><div class="metric-label">SGギフト人数率</div><div class="metric-value">{sg_person_rate}</div><div class="metric-caption">（MK平均値：{st.session_state.get('mk_avg_rate_sg_person', 0):.1f}% / MK中央値：{st.session_state.get('mk_median_rate_sg_person', 0):.1f}%）</div><div class="metric-help">ギフト人数総数に対するSGギフト人数の割合です。</div></div>"""
+                    st.markdown(metric_html, unsafe_allow_html=True)
 
-            st.markdown("<hr>", unsafe_allow_html=True)
+                st.markdown("<hr>", unsafe_allow_html=True)
 
-            st.subheader("🎯 ヒット配信")
-            st.info("特定の条件を満たしたパフォーマンスの高い配信をピックアップしています。")
+                st.subheader("🎯 ヒット配信")
+                st.info("特定の条件を満たしたパフォーマンスの高い配信をピックアップしています。")
 
-            avg_support_points = df_display["獲得支援point"].mean()
-            avg_sg_total = df_display["期限あり/期限なしSG総額"].mean()
-            avg_sg_gifters = df_display["期限あり/期限なしSGのギフティング人数"].mean()
-            avg_gifters = df_display["ギフト人数"].mean()
-            avg_commenters = df_display["コメント人数"].mean()
+                avg_support_points = df_display["獲得支援point"].mean()
+                avg_sg_total = df_display["期限あり/期限なしSG総額"].mean()
+                avg_sg_gifters = df_display["期限あり/期限なしSGのギフティング人数"].mean()
+                avg_gifters = df_display["ギフト人数"].mean()
+                avg_commenters = df_display["コメント人数"].mean()
 
-            hit_broadcasts = []
-            for index, row in df_display.iterrows():
-                hit_items = []
-                if pd.notna(row['初ルーム来訪者数']) and row['合計視聴数'] > 0 and (row['初ルーム来訪者数'] / row['合計視聴数']) >= 0.12: hit_items.append('初見訪問者率')
-                if pd.notna(row['初コメント人数']) and row['コメント人数'] > 0 and (row['初コメント人数'] / row['コメント人数']) >= 0.10: hit_items.append('初コメント率')
-                if pd.notna(row['初ギフト人数']) and row['ギフト人数'] > 0 and (row['初ギフト人数'] / row['ギフト人数']) >= 0.12: hit_items.append('初ギフト率')
-                if pd.notna(row['短時間滞在者数']) and row['視聴会員数'] > 0 and (row['短時間滞在者数'] / row['視聴会員数']) <= 0.15: hit_items.append('短時間滞在者率')
-                if pd.notna(row['獲得支援point']) and row['獲得支援point'] >= avg_support_points * 2.7: hit_items.append('獲得支援point')
-                if pd.notna(row['期限あり/期限なしSG総額']) and row['期限あり/期限なしSG総額'] >= avg_sg_total * 2.7: hit_items.append('SG総額')
-                if pd.notna(row['期限あり/期限なしSGのギフティング人数']) and row['期限あり/期限なしSGのギフティング人数'] >= avg_sg_gifters * 2.2: hit_items.append('SGギフト人数')
-                if pd.notna(row['ギフト人数']) and row['ギフト人数'] >= avg_gifters * 2.2: hit_items.append('ギフト人数')
-                if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.2: hit_items.append('コメント人数')
-                if hit_items:
-                    hit_broadcasts.append({'配信日時': row['配信日時'], 'ヒット項目': ', '.join(hit_items), 'イベント名': row['イベント名']})
-            if hit_broadcasts:
-                hit_df = pd.DataFrame(hit_broadcasts)
-                hit_df['配信日時'] = pd.to_datetime(hit_df['配信日時']).dt.strftime('%Y-%m-%d %H:%M')
-                st.dataframe(hit_df, hide_index=True)
-            else:
-                st.info("条件を満たす「ヒット配信」は見つかりませんでした。")
-    
-    
+                hit_broadcasts = []
+                for index, row in df_display.iterrows():
+                    hit_items = []
+                    if pd.notna(row['初ルーム来訪者数']) and row['合計視聴数'] > 0 and (row['初ルーム来訪者数'] / row['合計視聴数']) >= 0.12: hit_items.append('初見訪問者率')
+                    if pd.notna(row['初コメント人数']) and row['コメント人数'] > 0 and (row['初コメント人数'] / row['コメント人数']) >= 0.10: hit_items.append('初コメント率')
+                    if pd.notna(row['初ギフト人数']) and row['ギフト人数'] > 0 and (row['初ギフト人数'] / row['ギフト人数']) >= 0.12: hit_items.append('初ギフト率')
+                    if pd.notna(row['短時間滞在者数']) and row['視聴会員数'] > 0 and (row['短時間滞在者数'] / row['視聴会員数']) <= 0.15: hit_items.append('短時間滞在者率')
+                    if pd.notna(row['獲得支援point']) and row['獲得支援point'] >= avg_support_points * 2.7: hit_items.append('獲得支援point')
+                    if pd.notna(row['期限あり/期限なしSG総額']) and row['期限あり/期限なしSG総額'] >= avg_sg_total * 2.7: hit_items.append('SG総額')
+                    if pd.notna(row['期限あり/期限なしSGのギフティング人数']) and row['期限あり/期限なしSGのギフティング人数'] >= avg_sg_gifters * 2.2: hit_items.append('SGギフト人数')
+                    if pd.notna(row['ギフト人数']) and row['ギフト人数'] >= avg_gifters * 2.2: hit_items.append('ギフト人数')
+                    if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.2: hit_items.append('コメント人数')
+                    if hit_items:
+                        hit_broadcasts.append({'配信日時': row['配信日時'], 'ヒット項目': ', '.join(hit_items), 'イベント名': row['イベント名']})
+                if hit_broadcasts:
+                    hit_df = pd.DataFrame(hit_broadcasts)
+                    hit_df['配信日時'] = pd.to_datetime(hit_df['配信日時']).dt.strftime('%Y-%m-%d %H:%M')
+                    st.dataframe(hit_df, hide_index=True)
+                else:
+                    st.info("条件を満たす「ヒット配信」は見つかりませんでした。")
+        else:
+            st.warning("指定された期間のデータが見つかりませんでした。")
+            st.session_state.run_analysis = False
