@@ -334,19 +334,43 @@ if st.session_state.get('run_analysis', False):
     mksp_df, _ = load_and_preprocess_data("mksp", start_date, end_date)
 
     if mksp_df is not None and not mksp_df.empty:
-        # MK平均値と中央値を計算してセッションステートに保存
-        st.session_state.mk_avg_rate_visit = (mksp_df['初ルーム来訪者数'] / mksp_df['合計視聴数']).mean() * 100 if '初ルーム来訪者数' in mksp_df and '合計視聴数' in mksp_df else 0
-        st.session_state.mk_median_rate_visit = (mksp_df['初ルーム来訪者数'] / mksp_df['合計視聴数']).median() * 100 if '初ルーム来訪者数' in mksp_df and '合計視聴数' in mksp_df else 0
-        st.session_state.mk_avg_rate_comment = (mksp_df['初コメント人数'] / mksp_df['コメント人数']).mean() * 100 if '初コメント人数' in mksp_df and 'コメント人数' in mksp_df else 0
-        st.session_state.mk_median_rate_comment = (mksp_df['初コメント人数'] / mksp_df['コメント人数']).median() * 100 if '初コメント人数' in mksp_df and 'コメント人数' in mksp_df else 0
-        st.session_state.mk_avg_rate_gift = (mksp_df['初ギフト人数'] / mksp_df['ギフト人数']).mean() * 100 if '初ギフト人数' in mksp_df and 'ギフト人数' in mksp_df else 0
-        st.session_state.mk_median_rate_gift = (mksp_df['初ギフト人数'] / mksp_df['ギフト人数']).median() * 100 if '初ギフト人数' in mksp_df and 'ギフト人数' in mksp_df else 0
-        st.session_state.mk_avg_rate_short_stay = (mksp_df['短時間滞在者数'] / mksp_df['視聴会員数']).mean() * 100 if '短時間滞在者数' in mksp_df and '視聴会員数' in mksp_df else 0
-        st.session_state.mk_median_rate_short_stay = (mksp_df['短時間滞在者数'] / mksp_df['視聴会員数']).median() * 100 if '短時間滞在者数' in mksp_df and '視聴会員数' in mksp_df else 0
-        st.session_state.mk_avg_rate_sg_gift = (mksp_df['期限あり/期限なしSGのギフティング数'] / mksp_df['ギフト数']).mean() * 100 if '期限あり/期限なしSGのギフティング数' in mksp_df and 'ギフト数' in mksp_df else 0
-        st.session_state.mk_median_rate_sg_gift = (mksp_df['期限あり/期限なしSGのギフティング数'] / mksp_df['ギフト数']).median() * 100 if '期限あり/期限なしSGのギフティング数' in mksp_df and 'ギフト数' in mksp_df else 0
-        st.session_state.mk_avg_rate_sg_person = (mksp_df['期限あり/期限なしSGのギフティング人数'] / mksp_df['ギフト人数']).mean() * 100 if '期限あり/期限なしSGのギフティング人数' in mksp_df and 'ギフト人数' in mksp_df else 0
-        st.session_state.mk_median_rate_sg_person = (mksp_df['期限あり/期限なしSGのギフティング人数'] / mksp_df['ギフト人数']).median() * 100 if '期限あり/期限なしSGのギフティング人数' in mksp_df and 'ギフト人数' in mksp_df else 0
+        
+        # ゼロ除算を避けるための修正
+        # 初ルーム来訪者率
+        # 合計視聴数が0より大きい行のみで計算
+        filtered_df_visit = mksp_df[mksp_df['合計視聴数'] > 0].copy()
+        st.session_state.mk_avg_rate_visit = (filtered_df_visit['初ルーム来訪者数'] / filtered_df_visit['合計視聴数']).mean() * 100 if not filtered_df_visit.empty else 0
+        st.session_state.mk_median_rate_visit = (filtered_df_visit['初ルーム来訪者数'] / filtered_df_visit['合計視聴数']).median() * 100 if not filtered_df_visit.empty else 0
+
+        # 初コメント率
+        # コメント人数が0より大きい行のみで計算
+        filtered_df_comment = mksp_df[mksp_df['コメント人数'] > 0].copy()
+        st.session_state.mk_avg_rate_comment = (filtered_df_comment['初コメント人数'] / filtered_df_comment['コメント人数']).mean() * 100 if not filtered_df_comment.empty else 0
+        st.session_state.mk_median_rate_comment = (filtered_df_comment['初コメント人数'] / filtered_df_comment['コメント人数']).median() * 100 if not filtered_df_comment.empty else 0
+
+        # 初ギフト率
+        # ギフト人数が0より大きい行のみで計算
+        filtered_df_gift = mksp_df[mksp_df['ギフト人数'] > 0].copy()
+        st.session_state.mk_avg_rate_gift = (filtered_df_gift['初ギフト人数'] / filtered_df_gift['ギフト人数']).mean() * 100 if not filtered_df_gift.empty else 0
+        st.session_state.mk_median_rate_gift = (filtered_df_gift['初ギフト人数'] / filtered_df_gift['ギフト人数']).median() * 100 if not filtered_df_gift.empty else 0
+
+        # 短時間滞在者率
+        # 視聴会員数が0より大きい行のみで計算
+        filtered_df_short_stay = mksp_df[mksp_df['視聴会員数'] > 0].copy()
+        st.session_state.mk_avg_rate_short_stay = (filtered_df_short_stay['短時間滞在者数'] / filtered_df_short_stay['視聴会員数']).mean() * 100 if not filtered_df_short_stay.empty else 0
+        st.session_state.mk_median_rate_short_stay = (filtered_df_short_stay['短時間滞在者数'] / filtered_df_short_stay['視聴会員数']).median() * 100 if not filtered_df_short_stay.empty else 0
+
+        # SGギフト数率
+        # ギフト数が0より大きい行のみで計算
+        filtered_df_sg_gift = mksp_df[mksp_df['ギフト数'] > 0].copy()
+        st.session_state.mk_avg_rate_sg_gift = (filtered_df_sg_gift['期限あり/期限なしSGのギフティング数'] / filtered_df_sg_gift['ギフト数']).mean() * 100 if not filtered_df_sg_gift.empty else 0
+        st.session_state.mk_median_rate_sg_gift = (filtered_df_sg_gift['期限あり/期限なしSGのギフティング数'] / filtered_df_sg_gift['ギフト数']).median() * 100 if not filtered_df_sg_gift.empty else 0
+
+        # SGギフト人数率
+        # ギフト人数が0より大きい行のみで計算
+        filtered_df_sg_person = mksp_df[mksp_df['ギフト人数'] > 0].copy()
+        st.session_state.mk_avg_rate_sg_person = (filtered_df_sg_person['期限あり/期限なしSGのギフティング人数'] / filtered_df_sg_person['ギフト人数']).mean() * 100 if not filtered_df_sg_person.empty else 0
+        st.session_state.mk_median_rate_sg_person = (filtered_df_sg_person['期限あり/期限なしSGのギフティング人数'] / filtered_df_sg_person['ギフト人数']).median() * 100 if not filtered_df_sg_person.empty else 0
 
 
     # ライバー個別のデータ読み込み
