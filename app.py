@@ -86,7 +86,9 @@ def clear_analysis_results():
 account_id = st.text_input(
     "アカウントID（全体平均等は mksp）",
     "",
-    type="password"
+    type="password",
+    key="account_id_input",  # 新しくkeyを追加
+    on_change=clear_analysis_results # on_changeイベントを追加
 )
 
 # ① 分析方法の選択時に分析結果をクリア
