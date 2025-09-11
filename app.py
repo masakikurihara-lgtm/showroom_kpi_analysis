@@ -103,16 +103,16 @@ else:  # 'イベントで指定'
                 if event_names:
                     # イベント変更時に分析結果をクリアするコールバックを追加
                     selected_event_val = st.selectbox(
-                        "分析するイベントを選択", 
+                        "分析するイベントを選択",
                         options=event_names,
                         on_change=clear_analysis_results
                     )
-                    
+
                     event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
                     if not event_details_to_link.empty:
                         start_time = event_details_to_link.iloc[0]['開始日時']
                         end_time = event_details_to_link.iloc[0]['終了日時']
-                        
+
                         # ご要望の修正: イベント期間の表示を太字で追加
                         if pd.notna(start_time) and pd.notna(end_time):
                             start_time_str = start_time.strftime('%Y/%m/%d %H:%M')
@@ -123,7 +123,7 @@ else:  # 'イベントで指定'
                         # 修正内容：イベントURLへのリンクを追加
                         if pd.notna(event_url):
                             st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
-                    
+
                     # ④ 注意書きの変更と配置
                     st.caption("※分析したい参加イベントが登録されていない場合は運営にご照会ください。")
                 else:
@@ -141,21 +141,15 @@ st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
 
 # データの読み込みと前処理関数
-# @st.cache_data(ttl=3600) # データのキャッシュを1時間保持
-def load_and_preprocess_data(account_id, start_date, end_date):
-    if not account_id:
-        st.error("アカウントIDを入力してください。")
-        return None, None
-    
-    if start_date > end_date:
-        st.error("開始日は終了日より前の日付を選択してください。")
-        return None, None
-
+def load_data_for_account(account_id, start_date, end_date):
+    """
+    指定されたアカウントIDと期間でデータを読み込み、前処理するヘルパー関数
+    """
     loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
     loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
 
     all_dfs = []
-    
+
     # 読み込み対象の月をリストアップ
     target_months = []
     current_date_loop = loop_start_date
@@ -165,58 +159,30 @@ def load_and_preprocess_data(account_id, start_date, end_date):
             current_date_loop = date(current_date_loop.year + 1, 1, 1)
         else:
             current_date_loop = date(current_date_loop.year, current_date_loop.month + 1, 1)
-    
-    total_months = len(target_months)
-    
-    # st.statusを使用して、プログレスバーとステータスを統合
-    with st.status("データの読み込みを開始します...", expanded=True) as status_container:
-        for i, current_date in enumerate(target_months):
-            year = current_date.year
-            month = current_date.month
-            
-            # 各月の進捗メッセージを更新
-            status_container.update(label=f"📂 {year}年{month}月のデータを取得しています...")
-            
-            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
-            
-            try:
-                response = requests.get(url)
-                response.raise_for_status()
-                csv_data = io.StringIO(response.content.decode('utf-8-sig'))
-                
-                df = pd.read_csv(csv_data, on_bad_lines='skip')
-                
-                df.columns = df.columns.str.strip().str.replace('"', '')
-                all_dfs.append(df)
-            
-            except requests.exceptions.RequestException as e:
-                if e.response and e.response.status_code == 404:
-                    status_container.warning(f"⚠️ {year}年{month}月のデータが見つかりませんでした。スキップします。")
-                else:
-                    status_container.error(f"❌ データの取得中に予期せぬエラーが発生しました: {e}")
-                    status_container.update(label="データ読み込み失敗", state="error", expanded=False)
-                    return None, None
-            except Exception as e:
-                status_container.error(f"❌ CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
-                status_container.update(label="データ読み込み失敗", state="error", expanded=False)
-                return None, None
-                
-            # プログレスバーを更新
-            progress = (i + 1) / total_months
-            status_container.progress(progress, text=f"進捗: {progress * 100:.0f}%完了")
+
+    for current_date in target_months:
+        year = current_date.year
+        month = current_date.month
+
+        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+            df = pd.read_csv(csv_data, on_bad_lines='skip')
+            df.columns = df.columns.str.strip().str.replace('"', '')
+            all_dfs.append(df)
+        except (requests.exceptions.RequestException, Exception) as e:
+            # エラー処理は呼び出し元で行う
+            continue
 
     if not all_dfs:
-        st.error(f"選択された期間のデータが一つも見つかりませんでした。")
-        status_container.update(label="データが見つかりませんでした", state="error", expanded=False)
         return None, None
-    
-    # 最終的なステータスを完了状態にする
-    status_container.update(label="データ読み込み完了", state="complete", expanded=False)
 
-    # ... (以降のデータ前処理コードは変更なし)
     combined_df = pd.concat(all_dfs, ignore_index=True)
     if "配信日時" not in combined_df.columns:
-        raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
+        return None, None
     combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
 
     if account_id == "mksp":
@@ -226,17 +192,16 @@ def load_and_preprocess_data(account_id, start_date, end_date):
 
     if isinstance(start_date, (datetime, pd.Timestamp)):
         filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"] >= start_date) & 
+            (filtered_by_account_df["配信日時"] >= start_date) &
             (filtered_by_account_df["配信日時"] <= end_date)
         ].copy()
     else:
         filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"].dt.date >= start_date) & 
+            (filtered_by_account_df["配信日時"].dt.date >= start_date) &
             (filtered_by_account_df["配信日時"].dt.date <= end_date)
         ].copy()
 
     if filtered_df.empty:
-        st.warning(f"指定されたアカウントID（{account_id}）のデータが選択された期間に見つかりませんでした。")
         return None, None
 
     numeric_cols = [
@@ -256,8 +221,100 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         room_id = filtered_df["ルームID"].iloc[0]
     else:
         room_id = None
-        
+
     return filtered_df, room_id
+
+
+def load_all_data_with_progress(account_id, start_date, end_date):
+    """
+    mkspと個人のアカウントのデータを単一の進捗バーで読み込む
+    """
+    loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
+    loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
+
+    # 読み込み対象の月をリストアップ
+    target_months = []
+    current_date_loop = loop_start_date
+    while current_date_loop <= loop_end_date:
+        target_months.append(current_date_loop)
+        if current_date_loop.month == 12:
+            current_date_loop = date(current_date_loop.year + 1, 1, 1)
+        else:
+            current_date_loop = date(current_date_loop.year, current_date_loop.month + 1, 1)
+
+    total_files_to_load = len(target_months) * 2  # mksp用と個人用の2つのデータセット
+
+    mksp_dfs = []
+    user_dfs = []
+    current_progress_step = 0
+
+    with st.status("データ読み込み中...", expanded=True) as status_container:
+        # mkspデータを読み込む
+        for i, current_date in enumerate(target_months):
+            year = current_date.year
+            month = current_date.month
+            status_container.update(label=f"📂 全体データ ({year}年{month}月) を取得しています...")
+            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+                mksp_dfs.append(pd.read_csv(csv_data, on_bad_lines='skip'))
+            except Exception:
+                status_container.warning(f"⚠️ 全体データ ({year}年{month}月) が見つかりませんでした。スキップします。")
+            current_progress_step += 1
+            status_container.progress(current_progress_step / total_files_to_load)
+
+        # 個人データを読み込む
+        for i, current_date in enumerate(target_months):
+            year = current_date.year
+            month = current_date.month
+            status_container.update(label=f"📂 個別データ ({year}年{month}月) を取得しています...")
+            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+                user_dfs.append(pd.read_csv(csv_data, on_bad_lines='skip'))
+            except Exception:
+                status_container.warning(f"⚠️ 個別データ ({year}年{month}月) が見つかりませんでした。スキップします。")
+            current_progress_step += 1
+            status_container.progress(current_progress_step / total_files_to_load)
+
+        if not mksp_dfs and not user_dfs:
+            st.error("指定された期間のデータが一つも見つかりませんでした。")
+            status_container.update(label="データ読み込み失敗", state="error", expanded=False)
+            return None, None, None, None
+
+        # mkspデータの前処理
+        mksp_df = None
+        if mksp_dfs:
+            mksp_combined_df = pd.concat(mksp_dfs, ignore_index=True)
+            if "配信日時" in mksp_combined_df.columns:
+                mksp_combined_df["配信日時"] = pd.to_datetime(mksp_combined_df["配信日時"])
+                mksp_df = mksp_combined_df[
+                    (mksp_combined_df["配信日時"].dt.date >= loop_start_date) &
+                    (mksp_combined_df["配信日時"].dt.date <= loop_end_date)
+                ].copy()
+
+        # ユーザーデータの前処理
+        df = None
+        room_id = None
+        if user_dfs:
+            user_combined_df = pd.concat(user_dfs, ignore_index=True)
+            if "配信日時" in user_combined_df.columns:
+                user_combined_df["配信日時"] = pd.to_datetime(user_combined_df["配信日時"])
+                filtered_by_account_df = user_combined_df[user_combined_df["アカウントID"] == account_id].copy()
+                df = filtered_by_account_df[
+                    (filtered_by_account_df["配信日時"].dt.date >= loop_start_date) &
+                    (filtered_by_account_df["配信日時"].dt.date <= loop_end_date)
+                ].copy()
+                if "ルームID" in df.columns and not df.empty:
+                    room_id = df["ルームID"].iloc[0]
+
+        status_container.update(label="データ読み込み完了", state="complete", expanded=False)
+
+        return mksp_df, df, room_id
 
 def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6: return "早朝 (3-6時)"
@@ -336,10 +393,10 @@ if 'run_analysis' not in st.session_state:
 if st.session_state.get('run_analysis', False):
     start_date = st.session_state.start_date
     end_date = st.session_state.end_date
-        
-    # 全体（mksp）のデータを最初に読み込み、計算を一度だけ行う
-    mksp_df, _ = load_and_preprocess_data("mksp", start_date, end_date)
-
+    
+    # 新しい統合された関数を呼び出す
+    mksp_df, df, room_id = load_all_data_with_progress(account_id, start_date, end_date)
+    
     if mksp_df is not None and not mksp_df.empty:
         
         # ゼロ除算を避けるための修正
@@ -380,9 +437,6 @@ if st.session_state.get('run_analysis', False):
         st.session_state.mk_median_rate_sg_person = (filtered_df_sg_person['期限あり/期限なしSGのギフティング人数'] / filtered_df_sg_person['ギフト人数']).median() * 100 if not filtered_df_sg_person.empty else 0
 
 
-    # ライバー個別のデータ読み込み
-    df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
-    
     if df is not None and not df.empty:
         st.success("データの読み込みが完了しました！")
         
@@ -604,5 +658,3 @@ if st.session_state.get('run_analysis', False):
                 st.dataframe(hit_df, hide_index=True)
             else:
                 st.info("条件を満たす「ヒット配信」は見つかりませんでした。")
-    
-    
