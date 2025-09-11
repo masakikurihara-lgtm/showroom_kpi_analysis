@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import io
 import requests
+import json  # JSONを扱うためにimport
 from datetime import datetime, date, timedelta
 import pytz
 import plotly.graph_objects as go
@@ -51,6 +52,29 @@ def fetch_event_data():
     except Exception as e:
         st.warning(f"イベント情報の取得に失敗しました: {e}")
         return pd.DataFrame()
+
+# ★ 新しい関数: ルーム名をAPIから取得
+@st.cache_data(ttl=3600)
+def fetch_room_name(room_id):
+    """SHOWROOM APIから最新のルーム名を取得する"""
+    if not room_id:
+        return "ルーム名不明"
+    
+    url = f"https://www.showroom-live.com/api/room/profile?room_id={room_id}"
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()  # HTTPエラーをチェック
+        data = response.json()
+        return data.get("room_name", "ルーム名不明")
+    except requests.exceptions.RequestException as e:
+        st.error(f"⚠️ ルーム名の取得に失敗しました: {e}")
+        return "ルーム名不明"
+    except json.JSONDecodeError:
+        st.error("⚠️ ルーム名の取得APIから無効な応答が返されました。")
+        return "ルーム名不明"
+    except Exception as e:
+        st.error(f"⚠️ ルーム名取得中に予期せぬエラーが発生しました: {e}")
+        return "ルーム名不明"
 
 def clear_analysis_results():
     """分析結果の表示状態をリセットするコールバック関数"""
@@ -185,9 +209,8 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         year = current_date.year
         month = current_date.month
         progress = (i + 1) / total_steps
-        progress_bar.progress(progress)
         progress_text.text(f"📊 全体データ ({year}年{month}月) を取得中... ({i+1}/{total_months})")
-
+        
         url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
         
         try:
@@ -288,6 +311,11 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         df_temp = filtered_df.copy()
         if "ルームID" in df_temp.columns and not df_temp.empty:
             room_id_temp = df_temp["ルームID"].iloc[0]
+            # ルーム名を取得して一時変数に格納
+            room_name_temp = fetch_room_name(room_id_temp)
+        else:
+            room_name_temp = "ルーム名不明"
+
 
     # mkspの場合は、mksp_df_tempをそのままdf_tempとして扱う
     else:
@@ -305,6 +333,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         
         df_temp = filtered_df.copy()
         room_id_temp = None
+        room_name_temp = "ルーム名不明" # mkspの場合はルーム名を取得しない
 
     # 数値型に変換する共通処理
     def convert_to_numeric(df):
@@ -331,7 +360,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     progress_bar.empty()
     progress_text.empty()
     
-    return mksp_df_temp, df_temp, room_id_temp
+    return mksp_df_temp, df_temp, room_id_temp, room_name_temp
 
 def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6: return "早朝 (3-6時)"
@@ -413,7 +442,7 @@ if st.session_state.get('run_analysis', False):
     end_date = st.session_state.end_date
     account_id = st.session_state.account_id # 保存したaccount_idを使用
 
-    mksp_df, df, room_id = load_and_preprocess_data(account_id, start_date, end_date)
+    mksp_df, df, room_id, room_name = load_and_preprocess_data(account_id, start_date, end_date)
     
     if df is not None and not df.empty:
         st.success("データの読み込みが完了しました！")
@@ -532,6 +561,7 @@ if st.session_state.get('run_analysis', False):
             st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
             df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
             time_of_day_kpis_mean = df.groupby('時間帯').agg({'獲得支援point': 'mean', '合計視聴数': 'mean', 'コメント数': 'mean'}).reset_index()
+            # 修正: '朝 (6-9時)' を含む完全なリストに統一
             time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
             time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
             time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
@@ -573,6 +603,11 @@ if st.session_state.get('run_analysis', False):
             df_display = df.sort_values(by="配信日時", ascending=False).copy()
             event_df_master = fetch_event_data()
             df_display = merge_event_data(df_display, event_df_master)
+            
+            # 修正: ルーム名列を追加
+            if 'ルーム名' not in df_display.columns:
+                 df_display['ルーム名'] = ''
+            df_display['ルーム名'] = room_name
 
             # ③ 時刻のフォーマットを変更
             df_display_formatted = df_display.copy()
