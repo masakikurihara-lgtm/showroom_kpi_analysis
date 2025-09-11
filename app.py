@@ -141,90 +141,6 @@ st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
 
 # データの読み込みと前処理関数
-def load_data_for_account(account_id, start_date, end_date):
-    """
-    指定されたアカウントIDと期間でデータを読み込み、前処理するヘルパー関数
-    """
-    loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
-    loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
-
-    all_dfs = []
-
-    # 読み込み対象の月をリストアップ
-    target_months = []
-    current_date_loop = loop_start_date
-    while current_date_loop <= loop_end_date:
-        target_months.append(current_date_loop)
-        if current_date_loop.month == 12:
-            current_date_loop = date(current_date_loop.year + 1, 1, 1)
-        else:
-            current_date_loop = date(current_date_loop.year, current_date_loop.month + 1, 1)
-
-    for current_date in target_months:
-        year = current_date.year
-        month = current_date.month
-
-        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
-
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            csv_data = io.StringIO(response.content.decode('utf-8-sig'))
-            df = pd.read_csv(csv_data, on_bad_lines='skip')
-            df.columns = df.columns.str.strip().str.replace('"', '')
-            all_dfs.append(df)
-        except (requests.exceptions.RequestException, Exception) as e:
-            # エラー処理は呼び出し元で行う
-            continue
-
-    if not all_dfs:
-        return None, None
-
-    combined_df = pd.concat(all_dfs, ignore_index=True)
-    if "配信日時" not in combined_df.columns:
-        return None, None
-    combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
-
-    if account_id == "mksp":
-        filtered_by_account_df = combined_df.copy()
-    else:
-        filtered_by_account_df = combined_df[combined_df["アカウントID"] == account_id].copy()
-
-    if isinstance(start_date, (datetime, pd.Timestamp)):
-        filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"] >= start_date) &
-            (filtered_by_account_df["配信日時"] <= end_date)
-        ].copy()
-    else:
-        filtered_df = filtered_by_account_df[
-            (filtered_by_account_df["配信日時"].dt.date >= start_date) &
-            (filtered_by_account_df["配信日時"].dt.date <= end_date)
-        ].copy()
-
-    if filtered_df.empty:
-        return None, None
-
-    numeric_cols = [
-        "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
-        "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
-        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
-        "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数"
-    ]
-    for col in numeric_cols:
-        if col in filtered_df.columns:
-            filtered_df[col] = pd.to_numeric(
-                filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"),
-                errors='coerce'
-            ).fillna(0)
-
-    if "ルームID" in filtered_df.columns and not filtered_df.empty:
-        room_id = filtered_df["ルームID"].iloc[0]
-    else:
-        room_id = None
-
-    return filtered_df, room_id
-
-
 def load_all_data_with_progress(account_id, start_date, end_date):
     """
     mkspと個人のアカウントのデータを単一の進捗バーで読み込む
@@ -676,3 +592,7 @@ if st.session_state.get('run_analysis', False):
                 st.dataframe(hit_df, hide_index=True)
             else:
                 st.info("条件を満たす「ヒット配信」は見つかりませんでした。")
+    
+    else:
+        st.warning("指定された期間のデータが見つかりませんでした。")
+        st.session_state.run_analysis = False
