@@ -38,7 +38,7 @@ st.markdown("---")
 
 
 # --- 関数定義 ---
-@st.cache_data(ttl=60) # キャッシュ保持を60秒に変更
+#@st.cache_data(ttl=60) # キャッシュ保持を60秒に変更
 def fetch_event_data():
     """イベントデータをCSVから読み込み、キャッシュする"""
     try:
@@ -54,7 +54,7 @@ def fetch_event_data():
         return pd.DataFrame()
 
 # ★ 新しい関数: ルーム名をAPIから取得
-@st.cache_data(ttl=3600)
+#@st.cache_data(ttl=3600)
 def fetch_room_name(room_id):
     """SHOWROOM APIから最新のルーム名を取得する"""
     if not room_id:
