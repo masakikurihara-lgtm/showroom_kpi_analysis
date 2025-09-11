@@ -89,8 +89,8 @@ if analysis_type == '期間で指定':
     selected_date_range_val = st.date_input(
         "分析期間",
         (default_start_date, default_end_date),
+        min_value=date(2020, 1, 1), # ここを追加
         max_value=today,
-        # 💡 ここを修正
         on_change=clear_analysis_results
     )
 else:  # 'イベントで指定'
