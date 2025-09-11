@@ -141,7 +141,7 @@ st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
 
 # データの読み込みと前処理関数
-#@st.cache_data(ttl=3600) # データのキャッシュを1時間保持
+# @st.cache_data(ttl=3600) # データのキャッシュを1時間保持
 def load_and_preprocess_data(account_id, start_date, end_date):
     if not account_id:
         st.error("アカウントIDを入力してください。")
@@ -166,18 +166,18 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         else:
             current_date_loop = date(current_date_loop.year, current_date_loop.month + 1, 1)
     
-    # プログレスバーとステータス表示の準備
     total_months = len(target_months)
-    progress_bar = st.progress(0, text="データの読み込みを開始します...")
     
-    with st.status("データ読み込み中...", expanded=True) as status_container:
+    # st.statusを使用して、プログレスバーとステータスを統合
+    with st.status("データの読み込みを開始します...", expanded=True) as status_container:
         for i, current_date in enumerate(target_months):
             year = current_date.year
             month = current_date.month
-            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
             
             # 各月の進捗メッセージを更新
-            status_container.write(f"📂 {year}年{month}月のデータを取得しています...")
+            status_container.update(label=f"📂 {year}年{month}月のデータを取得しています...")
+            
+            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
             
             try:
                 response = requests.get(url)
@@ -203,21 +203,18 @@ def load_and_preprocess_data(account_id, start_date, end_date):
                 
             # プログレスバーを更新
             progress = (i + 1) / total_months
-            progress_bar.progress(progress, text=f"進捗: {progress * 100:.0f}%完了")
+            status_container.progress(progress, text=f"進捗: {progress * 100:.0f}%完了")
 
     if not all_dfs:
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
-        progress_bar.empty()
         status_container.update(label="データが見つかりませんでした", state="error", expanded=False)
         return None, None
-        
-    # 最終的なプログレスバーを完了状態にする
-    progress_bar.progress(1.0, text="全データの読み込みが完了しました。")
-    status_container.update(label="データ読み込み完了", state="complete", expanded=False)
     
-    # ここから既存のデータ前処理
-    combined_df = pd.concat(all_dfs, ignore_index=True)
+    # 最終的なステータスを完了状態にする
+    status_container.update(label="データ読み込み完了", state="complete", expanded=False)
 
+    # ... (以降のデータ前処理コードは変更なし)
+    combined_df = pd.concat(all_dfs, ignore_index=True)
     if "配信日時" not in combined_df.columns:
         raise KeyError("CSVファイルに '配信日時' 列が見つかりませんでした。")
     combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
@@ -226,7 +223,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         filtered_by_account_df = combined_df.copy()
     else:
         filtered_by_account_df = combined_df[combined_df["アカウントID"] == account_id].copy()
-    
+
     if isinstance(start_date, (datetime, pd.Timestamp)):
         filtered_df = filtered_by_account_df[
             (filtered_by_account_df["配信日時"] >= start_date) & 
