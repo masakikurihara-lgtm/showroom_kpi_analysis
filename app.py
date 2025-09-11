@@ -532,7 +532,7 @@ if st.session_state.get('run_analysis', False):
             st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
             df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
             time_of_day_kpis_mean = df.groupby('時間帯').agg({'獲得支援point': 'mean', '合計視聴数': 'mean', 'コメント数': 'mean'}).reset_index()
-            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
+            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
             time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
             time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
             time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
