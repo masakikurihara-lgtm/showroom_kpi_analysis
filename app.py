@@ -341,7 +341,18 @@ if st.session_state.get('run_analysis', False):
     mksp_df, _ = load_and_preprocess_data("mksp", start_date, end_date)
 
     if mksp_df is not None and not mksp_df.empty:
-        
+        # **ここから追加・修正**
+        # 全体データの必要なカラムを確実に数値型に変換
+        numeric_cols_to_check = [
+            '合計視聴数', '初ルーム来訪者数', 'コメント人数', '初コメント人数', 'ギフト人数',
+            '初ギフト人数', '視聴会員数', '短時間滞在者数', 'ギフト数',
+            '期限あり/期限なしSGのギフティング数', '期限あり/期限なしSGのギフティング人数'
+        ]
+        for col in numeric_cols_to_check:
+            if col in mksp_df.columns:
+                mksp_df[col] = pd.to_numeric(mksp_df[col], errors='coerce').fillna(0)
+        # **ここまで追加・修正**
+
         # ゼロ除算を避けるための修正
         # 初ルーム来訪者率
         # 合計視聴数が0より大きい行のみで計算
@@ -604,5 +615,3 @@ if st.session_state.get('run_analysis', False):
                 st.dataframe(hit_df, hide_index=True)
             else:
                 st.info("条件を満たす「ヒット配信」は見つかりませんでした。")
-    
-    
