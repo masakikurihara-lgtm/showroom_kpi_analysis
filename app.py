@@ -312,6 +312,24 @@ def load_all_data_with_progress(account_id, start_date, end_date):
                 if "ルームID" in df.columns and not df.empty:
                     room_id = df["ルームID"].iloc[0]
 
+        # 修正: mksp_dfとdfの数値変換をここで実行
+        numeric_cols = [
+            "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
+            "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
+            "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
+            "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数"
+        ]
+        
+        if mksp_df is not None and not mksp_df.empty:
+            for col in numeric_cols:
+                if col in mksp_df.columns:
+                    mksp_df[col] = pd.to_numeric(mksp_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce').fillna(0)
+        
+        if df is not None and not df.empty:
+            for col in numeric_cols:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce').fillna(0)
+
         status_container.update(label="データ読み込み完了", state="complete", expanded=False)
 
         return mksp_df, df, room_id
@@ -422,7 +440,7 @@ if st.session_state.get('run_analysis', False):
         # 視聴会員数が0より大きい行のみで計算
         filtered_df_short_stay = mksp_df[mksp_df['視聴会員数'] > 0].copy()
         st.session_state.mk_avg_rate_short_stay = (filtered_df_short_stay['短時間滞在者数'] / filtered_df_short_stay['視聴会員数']).mean() * 100 if not filtered_df_short_stay.empty else 0
-        st.session_state.mk_median_rate_short_stay = (filtered_df_short_stay['短時間滞在者数'] / filtered_df_short_stay['視聴会員数']).median() * 100 if not filtered_df_short_stay.empty else 0
+        st.session_state.mk_median_rate_short_stay = (filtered_df_short_stay['短時間滞在者数'] / filtered_df_short_stay['視聴会員数']).median() * 10_0 if not filtered_df_short_stay.empty else 0
 
         # SGギフト数率
         # ギフト数が0より大きい行のみで計算
