@@ -201,7 +201,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     mksp_df_temp = pd.DataFrame()
     df_temp = pd.DataFrame()
     room_id_temp = None
-    original_room_name_temp = None
 
     total_steps = 2 * total_months if not is_mksp else total_months
 
@@ -209,9 +208,13 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     for i, current_date in enumerate(target_months):
         year = current_date.year
         month = current_date.month
-        progress = (i + 1) / total_steps
-        progress_text.text(f"📊 全体データ ({year}年{month}月) を取得中... ({i+1}/{total_months})")
         
+        # 全体データ読み込み時のプログレス計算
+        progress = (i + 1) / total_steps
+        
+        progress_bar.progress(progress)
+        progress_text.text(f"📊 全体データ ({year}年{month}月) を取得中... ({i+1}/{total_months})")
+
         url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
         
         try:
@@ -256,7 +259,10 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         for i, current_date in enumerate(target_months):
             year = current_date.year
             month = current_date.month
+            
+            # 個人データ読み込み時のプログレス計算
             progress = (total_months + i + 1) / total_steps
+            
             progress_bar.progress(progress)
             progress_text.text(f"👤 個人データ ({year}年{month}月) を取得中... ({i+1}/{total_months})")
             
@@ -312,13 +318,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         df_temp = filtered_df.copy()
         if "ルームID" in df_temp.columns and not df_temp.empty:
             room_id_temp = df_temp["ルームID"].iloc[0]
-            # ★ 修正: 元のルーム名を取得
-            original_room_name_temp = df_temp.iloc[0]["ルーム名"] if "ルーム名" in df_temp.columns else "ルーム名不明"
-            # ルーム名を取得して一時変数に格納
-            room_name_temp = fetch_room_name(room_id_temp, original_room_name_temp)
-        else:
-            room_name_temp = "ルーム名不明"
-
 
     # mkspの場合は、mksp_df_tempをそのままdf_tempとして扱う
     else:
@@ -336,7 +335,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         
         df_temp = filtered_df.copy()
         room_id_temp = None
-        room_name_temp = "ルーム名不明" # mkspの場合はルーム名を取得しない
 
     # 数値型に変換する共通処理
     def convert_to_numeric(df):
@@ -363,7 +361,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     progress_bar.empty()
     progress_text.empty()
     
-    return mksp_df_temp, df_temp, room_id_temp, room_name_temp
+    return mksp_df_temp, df_temp, room_id_temp
 
 def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6: return "早朝 (3-6時)"
