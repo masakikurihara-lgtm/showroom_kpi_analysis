@@ -241,7 +241,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
         progress_bar.empty()
         progress_text.empty()
-        return None, None
+        return None, None, None, None
 
     combined_df = pd.concat(all_dfs, ignore_index=True)
     if "配信日時" not in combined_df.columns:
@@ -278,18 +278,18 @@ def load_and_preprocess_data(account_id, start_date, end_date):
                     st.error(f"❌ データの取得中に予期せぬエラーが発生しました: {e}")
                     progress_bar.empty()
                     progress_text.empty()
-                    return None, None
+                    return None, None, None, None
             except Exception as e:
                 st.error(f"❌ CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
                 progress_bar.empty()
                 progress_text.empty()
-                return None, None
+                return None, None, None, None
 
         if not individual_dfs:
             st.warning(f"指定されたアカウントID（{account_id}）のデータが選択された期間に見つかりませんでした。")
             progress_bar.empty()
             progress_text.empty()
-            return None, None
+            return None, None, None, None
             
         individual_combined_df = pd.concat(individual_dfs, ignore_index=True)
         if "配信日時" not in individual_combined_df.columns:
@@ -297,6 +297,12 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         individual_combined_df["配信日時"] = pd.to_datetime(individual_combined_df["配信日時"])
 
         filtered_by_account_df = individual_combined_df[individual_combined_df["アカウントID"] == account_id].copy()
+
+        if filtered_by_account_df.empty:
+            st.warning(f"指定されたアカウントID（{account_id}）の配信データが選択された期間に見つかりませんでした。")
+            progress_bar.empty()
+            progress_text.empty()
+            return None, None, None, None
         
         if isinstance(start_date, (datetime, pd.Timestamp)):
             filtered_df = filtered_by_account_df[
@@ -445,7 +451,10 @@ if st.session_state.get('run_analysis', False):
 
     mksp_df, df, room_id, room_name = load_and_preprocess_data(account_id, start_date, end_date)
     
-    if df is not None and not df.empty:
+    if df is None or df.empty:
+        st.error("指定された期間・アカウントIDの配信データが見つかりませんでした。アカウントIDや期間を再度ご確認ください。")
+        st.session_state.run_analysis = False # 分析を中断する
+    else:
         st.success("データの読み込みが完了しました！")
         
         if mksp_df is not None and not mksp_df.empty:
