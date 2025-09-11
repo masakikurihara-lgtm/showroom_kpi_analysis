@@ -209,6 +209,7 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         year = current_date.year
         month = current_date.month
         progress = (i + 1) / total_steps
+        progress_bar.progress(progress)
         progress_text.text(f"📊 全体データ ({year}年{month}月) を取得中... ({i+1}/{total_months})")
         
         url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
