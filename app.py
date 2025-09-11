@@ -689,14 +689,39 @@ if st.session_state.get('run_analysis', False):
             hit_broadcasts = []
             for index, row in df_display.iterrows():
                 hit_items = []
-                if pd.notna(row['初ルーム来訪者数']) and row['合計視聴数'] > 0 and (row['初ルーム来訪者数'] / row['合計視聴数']) >= 0.12: hit_items.append('初見訪問者率')
-                if pd.notna(row['初コメント人数']) and row['コメント人数'] > 0 and (row['初コメント人数'] / row['コメント人数']) >= 0.10: hit_items.append('初コメント率')
-                if pd.notna(row['初ギフト人数']) and row['ギフト人数'] > 0 and (row['初ギフト人数'] / row['ギフト人数']) >= 0.12: hit_items.append('初ギフト率')
-                if pd.notna(row['短時間滞在者数']) and row['視聴会員数'] > 0 and (row['短時間滞在者数'] / row['視聴会員数']) <= 0.15: hit_items.append('短時間滞在者率')
+                # ① 初見訪問者率
+                if pd.notna(row['初ルーム来訪者数']) and row['合計視聴数'] > 0:
+                    rate = (row['初ルーム来訪者数'] / row['合計視聴数']) * 100
+                    mk_avg_rate_visit = st.session_state.get('mk_avg_rate_visit', 0)
+                    if rate >= mk_avg_rate_visit * 2.0:
+                        hit_items.append('初見訪問者率')
+                # ② 初コメント率
+                if pd.notna(row['初コメント人数']) and row['コメント人数'] > 0:
+                    rate = (row['初コメント人数'] / row['コメント人数']) * 100
+                    mk_avg_rate_comment = st.session_state.get('mk_avg_rate_comment', 0)
+                    if rate >= mk_avg_rate_comment * 2.0:
+                        hit_items.append('初コメント率')
+                # ③ 初ギフト率
+                if pd.notna(row['初ギフト人数']) and row['ギフト人数'] > 0:
+                    rate = (row['初ギフト人数'] / row['ギフト人数']) * 100
+                    mk_avg_rate_gift = st.session_state.get('mk_avg_rate_gift', 0)
+                    if rate >= mk_avg_rate_gift * 2.0:
+                        hit_items.append('初ギフト率')
+                # ④ 短時間滞在者率
+                if pd.notna(row['短時間滞在者数']) and row['視聴会員数'] > 0:
+                    rate = (row['短時間滞在者数'] / row['視聴会員数']) * 100
+                    mk_avg_rate_short_stay = st.session_state.get('mk_avg_rate_short_stay', 0)
+                    if rate <= mk_avg_rate_short_stay * 0.5:
+                        hit_items.append('短時間滞在者率')
+                # ⑤ 獲得支援point
                 if pd.notna(row['獲得支援point']) and row['獲得支援point'] >= avg_support_points * 2.7: hit_items.append('獲得支援point')
+                # ⑥ SG総額
                 if pd.notna(row['期限あり/期限なしSG総額']) and row['期限あり/期限なしSG総額'] >= avg_sg_total * 2.7: hit_items.append('SG総額')
+                # ⑦ SGギフト人数
                 if pd.notna(row['期限あり/期限なしSGのギフティング人数']) and row['期限あり/期限なしSGのギフティング人数'] >= avg_sg_gifters * 2.2: hit_items.append('SGギフト人数')
+                # ⑧ ギフト人数
                 if pd.notna(row['ギフト人数']) and row['ギフト人数'] >= avg_gifters * 2.2: hit_items.append('ギフト人数')
+                # ⑨ コメント人数
                 if pd.notna(row['コメント人数']) and row['コメント人数'] >= avg_commenters * 2.2: hit_items.append('コメント人数')
                 if hit_items:
                     hit_broadcasts.append({'配信日時': row['配信日時'], 'ヒット項目': ', '.join(hit_items), 'イベント名': row['イベント名']})
