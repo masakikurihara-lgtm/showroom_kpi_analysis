@@ -168,11 +168,11 @@ st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 # @st.cache_data(ttl=3600) # データのキャッシュを1時間保持
 def load_and_preprocess_data(account_id, start_date, end_date):
     if not account_id:
-        # st.error("アカウントIDを入力してください。")
+         st.error("アカウントIDを入力してください。")
         return None, None
     
     if start_date > end_date:
-        # st.error("開始日は終了日より前の日付を選択してください。")
+         st.error("開始日は終了日より前の日付を選択してください。")
         return None, None
 
     loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
