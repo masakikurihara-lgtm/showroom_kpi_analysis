@@ -167,52 +167,54 @@ def load_and_preprocess_data(account_id, start_date, end_date):
             current_date_loop = date(current_date_loop.year, current_date_loop.month + 1, 1)
     
     total_months = len(target_months)
-    
-    # st.statusを使用して、プログレスバーとステータスを統合
-    with st.status("データの読み込みを開始します...", expanded=True) as status_container:
-        for i, current_date in enumerate(target_months):
-            year = current_date.year
-            month = current_date.month
-            
-            # 各月の進捗メッセージを更新
-            status_container.update(label=f"📂 {year}年{month}月のデータを取得しています...")
-            
-            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
-            
-            try:
-                response = requests.get(url)
-                response.raise_for_status()
-                csv_data = io.StringIO(response.content.decode('utf-8-sig'))
-                
-                df = pd.read_csv(csv_data, on_bad_lines='skip')
-                
-                df.columns = df.columns.str.strip().str.replace('"', '')
-                all_dfs.append(df)
-            
-            except requests.exceptions.RequestException as e:
-                if e.response and e.response.status_code == 404:
-                    status_container.warning(f"⚠️ {year}年{month}月のデータが見つかりませんでした。スキップします。")
-                else:
-                    status_container.error(f"❌ データの取得中に予期せぬエラーが発生しました: {e}")
-                    status_container.update(label="データ読み込み失敗", state="error", expanded=False)
-                    return None, None
-            except Exception as e:
-                status_container.error(f"❌ CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
-                status_container.update(label="データ読み込み失敗", state="error", expanded=False)
-                return None, None
-                
-            # プログレスバーを更新
-            progress = (i + 1) / total_months
-            status_container.progress(progress, text=f"進捗: {progress * 100:.0f}%完了")
 
+    # プログレスバーを一本で実装
+    progress_bar = st.progress(0)
+    progress_text = st.empty()
+
+    for i, current_date in enumerate(target_months):
+        year = current_date.year
+        month = current_date.month
+        
+        # 進捗を更新
+        progress = (i + 1) / total_months
+        progress_bar.progress(progress)
+        progress_text.text(f"📂 {year}年{month}月のデータを取得しています... (ファイル {i+1}/{total_months})")
+        
+        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+        
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+            
+            df = pd.read_csv(csv_data, on_bad_lines='skip')
+            
+            df.columns = df.columns.str.strip().str.replace('"', '')
+            all_dfs.append(df)
+        
+        except requests.exceptions.RequestException as e:
+            if e.response and e.response.status_code == 404:
+                st.warning(f"⚠️ {year}年{month}月のデータが見つかりませんでした。スキップします。")
+            else:
+                st.error(f"❌ データの取得中に予期せぬエラーが発生しました: {e}")
+                progress_bar.empty()
+                progress_text.empty()
+                return None, None
+        except Exception as e:
+            st.error(f"❌ CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
+            progress_bar.empty()
+            progress_text.empty()
+            return None, None
+            
+    # 最終的なステータスを完了状態にする
+    progress_bar.empty()
+    progress_text.success("データ読み込み完了！")
+    
     if not all_dfs:
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
-        status_container.update(label="データが見つかりませんでした", state="error", expanded=False)
         return None, None
     
-    # 最終的なステータスを完了状態にする
-    status_container.update(label="データ読み込み完了", state="complete", expanded=False)
-
     # ... (以降のデータ前処理コードは変更なし)
     combined_df = pd.concat(all_dfs, ignore_index=True)
     if "配信日時" not in combined_df.columns:
@@ -477,7 +479,7 @@ if st.session_state.get('run_analysis', False):
             st.info("※ このグラフは、各時間帯に配信した際の各KPIの**平均値**を示しています。棒上の数字は、その時間帯の配信件数です。")
             df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
             time_of_day_kpis_mean = df.groupby('時間帯').agg({'獲得支援point': 'mean', '合計視聴数': 'mean', 'コメント数': 'mean'}).reset_index()
-            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
+            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
             time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
             time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
             time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
