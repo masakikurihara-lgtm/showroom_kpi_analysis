@@ -151,52 +151,71 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         st.error("開始日は終了日より前の日付を選択してください。")
         return None, None
 
-    # 時刻オブジェクトと日付オブジェクトを区別してループ用の日付を生成
     loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
     loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
 
     all_dfs = []
-    current_date = loop_start_date
-    with st.spinner('データを読み込んでいます...'):
-        while current_date <= loop_end_date:
+    
+    # 読み込み対象の月をリストアップ
+    target_months = []
+    current_date_loop = loop_start_date
+    while current_date_loop <= loop_end_date:
+        target_months.append(current_date_loop)
+        if current_date_loop.month == 12:
+            current_date_loop = date(current_date_loop.year + 1, 1, 1)
+        else:
+            current_date_loop = date(current_date_loop.year, current_date_loop.month + 1, 1)
+    
+    # プログレスバーとステータス表示の準備
+    total_months = len(target_months)
+    progress_bar = st.progress(0, text="データの読み込みを開始します...")
+    
+    with st.status("データ読み込み中...", expanded=True) as status_container:
+        for i, current_date in enumerate(target_months):
             year = current_date.year
             month = current_date.month
-            
             url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+            
+            # 各月の進捗メッセージを更新
+            status_container.write(f"📂 {year}年{month}月のデータを取得しています...")
             
             try:
                 response = requests.get(url)
                 response.raise_for_status()
                 csv_data = io.StringIO(response.content.decode('utf-8-sig'))
                 
-                # 💡 修正箇所: on_bad_lines='skip' を使用して不正な行をスキップ
                 df = pd.read_csv(csv_data, on_bad_lines='skip')
                 
-                # CSVファイルによってはカラム名に余分な文字が入ることがあるため、前処理
                 df.columns = df.columns.str.strip().str.replace('"', '')
                 all_dfs.append(df)
             
             except requests.exceptions.RequestException as e:
-                # 404 Not Foundの場合に警告を表示
                 if e.response and e.response.status_code == 404:
-                    st.warning(f"{year}年{month}月のデータが見つかりませんでした。スキップします。")
+                    status_container.warning(f"⚠️ {year}年{month}月のデータが見つかりませんでした。スキップします。")
                 else:
-                    st.error(f"データの取得中に予期せぬエラーが発生しました: {e}")
+                    status_container.error(f"❌ データの取得中に予期せぬエラーが発生しました: {e}")
+                    status_container.update(label="データ読み込み失敗", state="error", expanded=False)
                     return None, None
             except Exception as e:
-                st.error(f"CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
+                status_container.error(f"❌ CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
+                status_container.update(label="データ読み込み失敗", state="error", expanded=False)
                 return None, None
-            
-            # 月を一つ進める
-            if current_date.month == 12:
-                current_date = date(current_date.year + 1, 1, 1)
-            else:
-                current_date = date(current_date.year, current_date.month + 1, 1)
+                
+            # プログレスバーを更新
+            progress = (i + 1) / total_months
+            progress_bar.progress(progress, text=f"進捗: {progress * 100:.0f}%完了")
 
     if not all_dfs:
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
+        progress_bar.empty()
+        status_container.update(label="データが見つかりませんでした", state="error", expanded=False)
         return None, None
-
+        
+    # 最終的なプログレスバーを完了状態にする
+    progress_bar.progress(1.0, text="全データの読み込みが完了しました。")
+    status_container.update(label="データ読み込み完了", state="complete", expanded=False)
+    
+    # ここから既存のデータ前処理
     combined_df = pd.concat(all_dfs, ignore_index=True)
 
     if "配信日時" not in combined_df.columns:
@@ -208,43 +227,34 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     else:
         filtered_by_account_df = combined_df[combined_df["アカウントID"] == account_id].copy()
     
-    # 時刻オブジェクトと日付オブジェクトでフィルタリング方法を分岐
     if isinstance(start_date, (datetime, pd.Timestamp)):
-        # イベント指定の場合：時刻まで含めて比較
         filtered_df = filtered_by_account_df[
             (filtered_by_account_df["配信日時"] >= start_date) & 
             (filtered_by_account_df["配信日時"] <= end_date)
         ].copy()
     else:
-        # 期間指定の場合：日付のみで比較
         filtered_df = filtered_by_account_df[
             (filtered_by_account_df["配信日時"].dt.date >= start_date) & 
             (filtered_by_account_df["配信日時"].dt.date <= end_date)
         ].copy()
 
-
     if filtered_df.empty:
         st.warning(f"指定されたアカウントID（{account_id}）のデータが選択された期間に見つかりませんでした。")
         return None, None
 
-    # 数値型に変換する列のリスト
     numeric_cols = [
         "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
         "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
         "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
         "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数"
     ]
-
     for col in numeric_cols:
         if col in filtered_df.columns:
-            # ハイフンとカンマを置換し、NaNを0に変換してから数値に変換
             filtered_df[col] = pd.to_numeric(
-                filtered_df[col].astype(str)
-                .str.replace(",", "").replace("-", "0"),
+                filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"),
                 errors='coerce'
-            ).fillna(0) # 変換できなかった値を0に
+            ).fillna(0)
 
-    
     if "ルームID" in filtered_df.columns and not filtered_df.empty:
         room_id = filtered_df["ルームID"].iloc[0]
     else:
