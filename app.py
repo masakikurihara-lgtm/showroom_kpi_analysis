@@ -53,28 +53,28 @@ def fetch_event_data():
         st.warning(f"イベント情報の取得に失敗しました: {e}")
         return pd.DataFrame()
 
-# ★ 修正済み関数: APIからルーム名を取得し、失敗時は元のルーム名を返す
+# ★ 新しい関数: ルーム名をAPIから取得
 @st.cache_data(ttl=3600)
-def fetch_room_name(room_id, original_room_name):
-    """SHOWROOM APIから最新のルーム名を取得する。失敗時は元のルーム名を返す。"""
+def fetch_room_name(room_id):
+    """SHOWROOM APIから最新のルーム名を取得する"""
     if not room_id:
-        return original_room_name
+        return "ルーム名不明"
     
     url = f"https://www.showroom-live.com/api/room/profile?room_id={room_id}"
     try:
         response = requests.get(url, timeout=5)
         response.raise_for_status()  # HTTPエラーをチェック
         data = response.json()
-        return data.get("room_name", original_room_name)
+        return data.get("room_name", "ルーム名不明")
     except requests.exceptions.RequestException as e:
         st.error(f"⚠️ ルーム名の取得に失敗しました: {e}")
-        return original_room_name
+        return "ルーム名不明"
     except json.JSONDecodeError:
         st.error("⚠️ ルーム名の取得APIから無効な応答が返されました。")
-        return original_room_name
+        return "ルーム名不明"
     except Exception as e:
         st.error(f"⚠️ ルーム名取得中に予期せぬエラーが発生しました: {e}")
-        return original_room_name
+        return "ルーム名不明"
 
 def clear_analysis_results():
     """分析結果の表示状態をリセットするコールバック関数"""
@@ -201,7 +201,6 @@ def load_and_preprocess_data(account_id, start_date, end_date):
     mksp_df_temp = pd.DataFrame()
     df_temp = pd.DataFrame()
     room_id_temp = None
-    original_room_name_temp = None
 
     total_steps = 2 * total_months if not is_mksp else total_months
 
@@ -312,10 +311,8 @@ def load_and_preprocess_data(account_id, start_date, end_date):
         df_temp = filtered_df.copy()
         if "ルームID" in df_temp.columns and not df_temp.empty:
             room_id_temp = df_temp["ルームID"].iloc[0]
-            # ★ 修正: 元のルーム名を取得
-            original_room_name_temp = df_temp.iloc[0]["ルーム名"] if "ルーム名" in df_temp.columns else "ルーム名不明"
             # ルーム名を取得して一時変数に格納
-            room_name_temp = fetch_room_name(room_id_temp, original_room_name_temp)
+            room_name_temp = fetch_room_name(room_id_temp)
         else:
             room_name_temp = "ルーム名不明"
 
