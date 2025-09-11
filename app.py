@@ -119,6 +119,9 @@ def load_and_preprocess_all_data(account_id, start_date, end_date):
 
     total_months = len(target_months)
     
+    mksp_combined_df = pd.DataFrame()
+    individual_combined_df = pd.DataFrame()
+
     with st.status("データの読み込みを開始します...", expanded=True) as status_container:
         # フェーズ1: mkspデータの読み込み
         mksp_all_dfs = []
@@ -140,7 +143,7 @@ def load_and_preprocess_all_data(account_id, start_date, end_date):
                 status_container.warning(f"⚠️ 全体データ ({year}年{month}月) が見つかりませんでした。スキップします。")
                 continue
             except Exception as e:
-                status_container.error(f"❌ 全体データ ({year}年{month}月) の取得中にエラーが発生しました: {e}")
+                status_container.error(f"❌ 全体データ ({year}年{month}月) の取得中に予期せぬエラーが発生しました: {e}")
                 status_container.update(state="error", expanded=False)
                 return None, None, None
 
@@ -176,7 +179,7 @@ def load_and_preprocess_all_data(account_id, start_date, end_date):
                     status_container.warning(f"⚠️ 個別データ ({year}年{month}月) が見つかりませんでした。スキップします。")
                     continue
                 except Exception as e:
-                    status_container.error(f"❌ 個別データ ({year}年{month}月) の取得中にエラーが発生しました: {e}")
+                    status_container.error(f"❌ 個別データ ({year}年{month}月) の取得中に予期せぬエラーが発生しました: {e}")
                     status_container.update(state="error", expanded=False)
                     return None, None, None
                 
@@ -186,10 +189,8 @@ def load_and_preprocess_all_data(account_id, start_date, end_date):
                 
             if not individual_all_dfs:
                 st.warning(f"指定されたアカウントID（{account_id}）のデータが見つかりませんでした。")
-                status_container.update(state="error", expanded=False)
-                return mksp_combined_df, None, None
-            
-            individual_combined_df = pd.concat(individual_all_dfs, ignore_index=True)
+            else:
+                individual_combined_df = pd.concat(individual_all_dfs, ignore_index=True)
             
         else:
             individual_combined_df = mksp_combined_df.copy()
