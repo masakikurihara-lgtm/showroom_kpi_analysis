@@ -141,6 +141,90 @@ st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
 
 # データの読み込みと前処理関数
+def load_data_for_account(account_id, start_date, end_date):
+    """
+    指定されたアカウントIDと期間でデータを読み込み、前処理するヘルパー関数
+    """
+    loop_start_date = start_date.date() if isinstance(start_date, (datetime, pd.Timestamp)) else start_date
+    loop_end_date = end_date.date() if isinstance(end_date, (datetime, pd.Timestamp)) else end_date
+
+    all_dfs = []
+
+    # 読み込み対象の月をリストアップ
+    target_months = []
+    current_date_loop = loop_start_date
+    while current_date_loop <= loop_end_date:
+        target_months.append(current_date_loop)
+        if current_date_loop.month == 12:
+            current_date_loop = date(current_date_loop.year + 1, 1, 1)
+        else:
+            current_date_loop = date(current_date_loop.year, current_date_loop.month + 1, 1)
+
+    for current_date in target_months:
+        year = current_date.year
+        month = current_date.month
+
+        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+            df = pd.read_csv(csv_data, on_bad_lines='skip')
+            df.columns = df.columns.str.strip().str.replace('"', '')
+            all_dfs.append(df)
+        except (requests.exceptions.RequestException, Exception) as e:
+            # エラー処理は呼び出し元で行う
+            continue
+
+    if not all_dfs:
+        return None, None
+
+    combined_df = pd.concat(all_dfs, ignore_index=True)
+    if "配信日時" not in combined_df.columns:
+        return None, None
+    combined_df["配信日時"] = pd.to_datetime(combined_df["配信日時"])
+
+    if account_id == "mksp":
+        filtered_by_account_df = combined_df.copy()
+    else:
+        filtered_by_account_df = combined_df[combined_df["アカウントID"] == account_id].copy()
+
+    if isinstance(start_date, (datetime, pd.Timestamp)):
+        filtered_df = filtered_by_account_df[
+            (filtered_by_account_df["配信日時"] >= start_date) &
+            (filtered_by_account_df["配信日時"] <= end_date)
+        ].copy()
+    else:
+        filtered_df = filtered_by_account_df[
+            (filtered_by_account_df["配信日時"].dt.date >= start_date) &
+            (filtered_by_account_df["配信日時"].dt.date <= end_date)
+        ].copy()
+
+    if filtered_df.empty:
+        return None, None
+
+    numeric_cols = [
+        "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
+        "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
+        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
+        "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数"
+    ]
+    for col in numeric_cols:
+        if col in filtered_df.columns:
+            filtered_df[col] = pd.to_numeric(
+                filtered_df[col].astype(str).str.replace(",", "").replace("-", "0"),
+                errors='coerce'
+            ).fillna(0)
+
+    if "ルームID" in filtered_df.columns and not filtered_df.empty:
+        room_id = filtered_df["ルームID"].iloc[0]
+    else:
+        room_id = None
+
+    return filtered_df, room_id
+
+
 def load_all_data_with_progress(account_id, start_date, end_date):
     """
     mkspと個人のアカウントのデータを単一の進捗バーで読み込む
@@ -164,95 +248,73 @@ def load_all_data_with_progress(account_id, start_date, end_date):
     user_dfs = []
     current_progress_step = 0
 
-    status_label = "データ読み込み中..."
-    progress_bar = st.progress(0, text=status_label)
+    with st.status("データ読み込み中...", expanded=True) as status_container:
+        # mkspデータを読み込む
+        for i, current_date in enumerate(target_months):
+            year = current_date.year
+            month = current_date.month
+            status_container.update(label=f"📂 全体データ ({year}年{month}月) を取得しています...")
+            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+                mksp_dfs.append(pd.read_csv(csv_data, on_bad_lines='skip'))
+            except Exception:
+                status_container.warning(f"⚠️ 全体データ ({year}年{month}月) が見つかりませんでした。スキップします。")
+            current_progress_step += 1
+            status_container.progress(current_progress_step / total_files_to_load)
 
-    # mkspデータを読み込む
-    for i, current_date in enumerate(target_months):
-        year = current_date.year
-        month = current_date.month
-        progress_bar.progress((current_progress_step + 1) / total_files_to_load, text=f"📂 全体データ ({year}年{month}月) を取得しています...")
-        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            csv_data = io.StringIO(response.content.decode('utf-8-sig'))
-            mksp_dfs.append(pd.read_csv(csv_data, on_bad_lines='skip'))
-        except Exception:
-            st.warning(f"⚠️ 全体データ ({year}年{month}月) が見つかりませんでした。スキップします。")
-        current_progress_step += 1
-        progress_bar.progress(current_progress_step / total_files_to_load, text=f"📂 全体データ ({year}年{month}月) を取得しました。")
-    
-    # 個人データを読み込む
-    for i, current_date in enumerate(target_months):
-        year = current_date.year
-        month = current_date.month
-        progress_bar.progress((current_progress_step + 1) / total_files_to_load, text=f"📂 個別データ ({year}年{month}月) を取得しています...")
-        url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            csv_data = io.StringIO(response.content.decode('utf-8-sig'))
-            user_dfs.append(pd.read_csv(csv_data, on_bad_lines='skip'))
-        except Exception:
-            st.warning(f"⚠️ 個別データ ({year}年{month}月) が見つかりませんでした。スキップします。")
-        current_progress_step += 1
-        progress_bar.progress(current_progress_step / total_files_to_load, text=f"📂 個別データ ({year}年{month}月) を取得しました。")
+        # 個人データを読み込む
+        for i, current_date in enumerate(target_months):
+            year = current_date.year
+            month = current_date.month
+            status_container.update(label=f"📂 個別データ ({year}年{month}月) を取得しています...")
+            url = f"https://mksoul-pro.com/showroom/csv/{year:04d}-{month:02d}_all_all.csv"
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                csv_data = io.StringIO(response.content.decode('utf-8-sig'))
+                user_dfs.append(pd.read_csv(csv_data, on_bad_lines='skip'))
+            except Exception:
+                status_container.warning(f"⚠️ 個別データ ({year}年{month}月) が見つかりませんでした。スキップします。")
+            current_progress_step += 1
+            status_container.progress(current_progress_step / total_files_to_load)
 
-    if not mksp_dfs and not user_dfs:
-        st.error("指定された期間のデータが一つも見つかりませんでした。")
-        progress_bar.progress(1.0, text="データ読み込み失敗")
-        return None, None, None, None
+        if not mksp_dfs and not user_dfs:
+            st.error("指定された期間のデータが一つも見つかりませんでした。")
+            status_container.update(label="データ読み込み失敗", state="error", expanded=False)
+            return None, None, None, None
 
-    # mkspデータの前処理
-    mksp_df = None
-    if mksp_dfs:
-        mksp_combined_df = pd.concat(mksp_dfs, ignore_index=True)
-        if "配信日時" in mksp_combined_df.columns:
-            mksp_combined_df["配信日時"] = pd.to_datetime(mksp_combined_df["配信日時"])
-            mksp_df = mksp_combined_df[
-                (mksp_combined_df["配信日時"].dt.date >= loop_start_date) &
-                (mksp_combined_df["配信日時"].dt.date <= loop_end_date)
-            ].copy()
+        # mkspデータの前処理
+        mksp_df = None
+        if mksp_dfs:
+            mksp_combined_df = pd.concat(mksp_dfs, ignore_index=True)
+            if "配信日時" in mksp_combined_df.columns:
+                mksp_combined_df["配信日時"] = pd.to_datetime(mksp_combined_df["配信日時"])
+                mksp_df = mksp_combined_df[
+                    (mksp_combined_df["配信日時"].dt.date >= loop_start_date) &
+                    (mksp_combined_df["配信日時"].dt.date <= loop_end_date)
+                ].copy()
 
-    # ユーザーデータの前処理
-    df = None
-    room_id = None
-    if user_dfs:
-        user_combined_df = pd.concat(user_dfs, ignore_index=True)
-        if "配信日時" in user_combined_df.columns:
-            user_combined_df["配信日時"] = pd.to_datetime(user_combined_df["配信日時"])
-            filtered_by_account_df = user_combined_df[user_combined_df["アカウントID"] == account_id].copy()
-            df = filtered_by_account_df[
-                (filtered_by_account_df["配信日時"].dt.date >= loop_start_date) &
-                (filtered_by_account_df["配信日時"].dt.date <= loop_end_date)
-            ].copy()
-            if "ルームID" in df.columns and not df.empty:
-                room_id = df["ルームID"].iloc[0]
+        # ユーザーデータの前処理
+        df = None
+        room_id = None
+        if user_dfs:
+            user_combined_df = pd.concat(user_dfs, ignore_index=True)
+            if "配信日時" in user_combined_df.columns:
+                user_combined_df["配信日時"] = pd.to_datetime(user_combined_df["配信日時"])
+                filtered_by_account_df = user_combined_df[user_combined_df["アカウントID"] == account_id].copy()
+                df = filtered_by_account_df[
+                    (filtered_by_account_df["配信日時"].dt.date >= loop_start_date) &
+                    (filtered_by_account_df["配信日時"].dt.date <= loop_end_date)
+                ].copy()
+                if "ルームID" in df.columns and not df.empty:
+                    room_id = df["ルームID"].iloc[0]
 
-    # 修正: mksp_dfとdfの数値変換をここで実行
-    numeric_cols = [
-        "合計視聴数", "視聴会員数", "フォロワー数", "獲得支援point", "コメント数",
-        "ギフト数", "期限あり/期限なしSG総額", "コメント人数", "初コメント人数",
-        "ギフト人数", "初ギフト人数", "フォロワー増減数", "初ルーム来訪者数", "配信時間(分)", "短時間滞在者数",
-        "期限あり/期限なしSGのギフティング数", "期限あり/期限なしSGのギフティング人数"
-    ]
-    
-    if mksp_df is not None and not mksp_df.empty:
-        for col in numeric_cols:
-            if col in mksp_df.columns:
-                mksp_df[col] = pd.to_numeric(mksp_df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce').fillna(0)
-    
-    if df is not None and not df.empty:
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", "").replace("-", "0"), errors='coerce').fillna(0)
+        status_container.update(label="データ読み込み完了", state="complete", expanded=False)
 
-    progress_bar.progress(1.0, text="データ読み込み完了")
-    time.sleep(1)
-    progress_bar.empty()
-
-    return mksp_df, df, room_id
+        return mksp_df, df, room_id
 
 def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6: return "早朝 (3-6時)"
@@ -360,7 +422,7 @@ if st.session_state.get('run_analysis', False):
         # 視聴会員数が0より大きい行のみで計算
         filtered_df_short_stay = mksp_df[mksp_df['視聴会員数'] > 0].copy()
         st.session_state.mk_avg_rate_short_stay = (filtered_df_short_stay['短時間滞在者数'] / filtered_df_short_stay['視聴会員数']).mean() * 100 if not filtered_df_short_stay.empty else 0
-        st.session_state.mk_median_rate_short_stay = (filtered_df_short_stay['短時間滞在者数'] / filtered_df_short_stay['視聴会員数']).median() * 10_0 if not filtered_df_short_stay.empty else 0
+        st.session_state.mk_median_rate_short_stay = (filtered_df_short_stay['短時間滞在者数'] / filtered_df_short_stay['視聴会員数']).median() * 100 if not filtered_df_short_stay.empty else 0
 
         # SGギフト数率
         # ギフト数が0より大きい行のみで計算
@@ -596,7 +658,3 @@ if st.session_state.get('run_analysis', False):
                 st.dataframe(hit_df, hide_index=True)
             else:
                 st.info("条件を満たす「ヒット配信」は見つかりませんでした。")
-    
-    else:
-        st.warning("指定された期間のデータが見つかりませんでした。")
-        st.session_state.run_analysis = False
