@@ -102,7 +102,7 @@ def clear_analysis_results():
 # --- UI入力セクション ---
 # ⑤ アカウントIDをパスワード形式で入力
 account_id = st.text_input(
-    "アカウントID（全体平均等は mksp）",
+    "アカウントID（全体平均等は所定のIDを入力）:",
     "",
     type="password",
     key="account_id_input",  # 新しくkeyを追加
@@ -111,7 +111,7 @@ account_id = st.text_input(
 
 # ① 分析方法の選択時に分析結果をクリア
 analysis_type = st.radio(
-    "分析方法を選択",
+    "分析方法を選択:",
     ('期間で指定', 'イベントで指定'),
     horizontal=True,
     key='analysis_type_selector',
@@ -131,7 +131,7 @@ if analysis_type == '期間で指定':
     default_end_date = today - timedelta(days=1)
     default_start_date = default_end_date - timedelta(days=30)
     selected_date_range_val = st.date_input(
-        "分析期間",
+        "分析期間:",
         (default_start_date, default_end_date),
         min_value=date(2020, 1, 1), # ここを追加
         max_value=today,
@@ -152,7 +152,7 @@ else:  # 'イベントで指定'
                     if event_names:
                         # イベント変更時に分析結果をクリアするコールバックを追加
                         selected_event_val = st.selectbox(
-                            "分析するイベントを選択", 
+                            "分析するイベントを選択:", 
                             options=event_names,
                             on_change=clear_analysis_results
                         )
