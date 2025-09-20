@@ -53,6 +53,24 @@ def fetch_event_data():
         st.warning(f"イベント情報の取得に失敗しました: {e}")
         return pd.DataFrame()
 
+# ★ 新しく追加した認証チェック関数
+@st.cache_data(ttl=3600)
+def check_authentication(account_id_to_check):
+    """アカウントIDが認証されているかチェックする"""
+    if account_id_to_check == "mksp":
+        return True
+    
+    ROOM_LIST_URL = "https://mksoul-pro.com/showroom/file/room_list.csv"
+    try:
+        # ヘッダーなしでD列(インデックス3)のみを文字列として読み込む
+        df = pd.read_csv(ROOM_LIST_URL, header=None, usecols=[3], dtype={3: str}, encoding='utf-8-sig')
+        # 欠損値を除外してリスト化
+        authenticated_ids = df[3].dropna().tolist()
+        return account_id_to_check in authenticated_ids
+    except Exception as e:
+        st.warning(f"認証情報の取得に失敗しました。: {e}")
+        return False # 認証に失敗した場合は処理を続行させない
+
 # ★ 新しい関数: ルーム名をAPIから取得
 #@st.cache_data(ttl=3600)
 def fetch_room_name(room_id):
@@ -408,40 +426,48 @@ def merge_event_data(df_to_merge, event_df):
 
 
 # --- メインロジック ---
+# ★★★ 認証チェック機能を追加して修正 ★★★
 if st.button("分析を実行"):
-    final_start_date, final_end_date = None, None
-
-    if st.session_state.analysis_type_selector == '期間で指定':
-        if selected_date_range_val and len(selected_date_range_val) == 2:
-            final_start_date, final_end_date = selected_date_range_val
-        else:
-            st.error("有効な期間が選択されていません。")
-    
-    else:  # 'イベントで指定'
-        if not account_id:
-            st.error("アカウントIDが入力されていません。")
-        elif not selected_event_val:
-            st.error("分析対象のイベントが選択されていません。")
-        else:
-            event_df = fetch_event_data()
-            event_details = event_df[
-                (event_df['アカウントID'] == account_id) & 
-                (event_df['イベント名'] == selected_event_val)
-            ]
-            if not event_details.empty:
-                # ② 時刻まで含めて取得
-                final_start_date = event_details.iloc[0]['開始日時']
-                final_end_date = event_details.iloc[0]['終了日時']
-            else:
-                st.error("選択されたイベントの詳細が見つかりませんでした。")
-
-    if final_start_date and final_end_date:
-        st.session_state.run_analysis = True
-        st.session_state.start_date = final_start_date
-        st.session_state.end_date = final_end_date
-        st.session_state.account_id = account_id # account_idをセッションに保存
-    else:
+    # 1. アカウントIDの入力チェック
+    if not account_id:
+        st.error("アカウントIDを入力してください。")
         st.session_state.run_analysis = False
+    # 2. 認証チェック
+    elif not check_authentication(account_id):
+        st.error(f"指定されたアカウントID（{account_id}）は認証されていません。")
+        st.session_state.run_analysis = False
+    # 3. 全てのチェックをパスした場合、分析処理を開始
+    else:
+        final_start_date, final_end_date = None, None
+
+        if st.session_state.analysis_type_selector == '期間で指定':
+            if selected_date_range_val and len(selected_date_range_val) == 2:
+                final_start_date, final_end_date = selected_date_range_val
+            else:
+                st.error("有効な期間が選択されていません。")
+        
+        else:  # 'イベントで指定'
+            if not selected_event_val:
+                st.error("分析対象のイベントが選択されていません。")
+            else:
+                event_df = fetch_event_data()
+                event_details = event_df[
+                    (event_df['アカウントID'] == account_id) & 
+                    (event_df['イベント名'] == selected_event_val)
+                ]
+                if not event_details.empty:
+                    final_start_date = event_details.iloc[0]['開始日時']
+                    final_end_date = event_details.iloc[0]['終了日時']
+                else:
+                    st.error("選択されたイベントの詳細が見つかりませんでした。")
+
+        if final_start_date and final_end_date:
+            st.session_state.run_analysis = True
+            st.session_state.start_date = final_start_date
+            st.session_state.end_date = final_end_date
+            st.session_state.account_id = account_id
+        else:
+            st.session_state.run_analysis = False
 
 
 if 'run_analysis' not in st.session_state:
