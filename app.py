@@ -399,7 +399,8 @@ def categorize_time_of_day_with_range(hour):
     if 3 <= hour < 6: return "早朝 (3-6時)"
     elif 6 <= hour < 9: return "朝 (6-9時)"
     elif 9 <= hour < 12: return "午前 (9-12時)"
-    elif 12 <= hour < 15: return "昼 (12-15時)"
+    elif 12 <= hour < 14: return "昼 (12-14時)"
+    elif 14 <= hour < 15: return "昼跨ぎ (14-15時)"
     elif 15 <= hour < 18: return "午後 (15-18時)"
     elif 18 <= hour < 21: return "夜前半 (18-21時)"
     elif 21 <= hour < 22: return "夜ピーク (21-22時)"
@@ -547,7 +548,7 @@ if st.session_state.get('run_analysis', False):
                 'コメント数': 'mean'
             }).reset_index()
 
-            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
+            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-14時)", "昼跨ぎ (14-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
             time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
             time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
             
@@ -605,7 +606,7 @@ if st.session_state.get('run_analysis', False):
             df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
             time_of_day_kpis_mean = df.groupby('時間帯').agg({'獲得支援point': 'mean', '合計視聴数': 'mean', 'コメント数': 'mean'}).reset_index()
             # 修正: '朝 (6-9時)' を含む完全なリストに統一
-            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
+            time_of_day_order = ["深夜 (0-3時)", "早朝 (3-6時)", "朝 (6-9時)", "午前 (9-12時)", "昼 (12-14時)", "昼跨ぎ (14-15時)", "午後 (15-18時)", "夜前半 (18-21時)", "夜ピーク (21-22時)", "夜後半 (22-24時)"]
             time_of_day_kpis_mean['時間帯'] = pd.Categorical(time_of_day_kpis_mean['時間帯'], categories=time_of_day_order, ordered=True)
             time_of_day_kpis_mean = time_of_day_kpis_mean.sort_values('時間帯')
             time_of_day_counts = df['時間帯'].value_counts().reindex(time_of_day_order, fill_value=0)
