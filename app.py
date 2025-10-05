@@ -146,7 +146,8 @@ else:  # 'イベントで指定'
             # 認証成功時のみイベント取得処理を実行
             event_df = fetch_event_data()
             if not event_df.empty:
-                user_events = event_df[event_df['アカウントID'] == account_id].sort_values('開始日時', ascending=False)
+                #user_events = event_df[event_df['アカウントID'] == account_id].sort_values('開始日時', ascending=False)
+                user_events = event_df[(event_df['アカウントID'] == account_id) & (event_df['開始日時'] >= '2023-09-01')].sort_values('開始日時', ascending=False)
                 if not user_events.empty:
                     event_names = user_events['イベント名'].unique().tolist()
                     if event_names:
