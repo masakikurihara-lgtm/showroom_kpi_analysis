@@ -170,7 +170,7 @@ else:  # 'イベントで指定'
                                 end_time_str = end_time.strftime('%Y/%m/%d %H:%M')
                                 st.markdown(f"**イベント期間：{start_time_str} - {end_time_str}**", unsafe_allow_html=True)
 
-                            event_url = event_details_to_link.iloc[0]['イベントURL']
+                            event_url = event_details_to_link.iloc[0]['URL']
                             # 修正内容：イベントURLへのリンクを追加
                             if pd.notna(event_url):
                                 st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
