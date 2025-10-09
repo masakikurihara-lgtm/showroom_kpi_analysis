@@ -42,7 +42,8 @@ st.markdown("---")
 def fetch_event_data():
     """イベントデータをCSVから読み込み、キャッシュする"""
     try:
-        event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
+        #event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
+        event_url = "https://mksoul-pro.com/showroom/file/event_database.csv"
         event_df = pd.read_csv(event_url, dtype={'アカウントID': str})
         event_df['開始日時'] = pd.to_datetime(event_df['開始日時'], errors='coerce')
         event_df['終了日時'] = pd.to_datetime(event_df['終了日時'], errors='coerce')
