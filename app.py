@@ -170,9 +170,28 @@ else:  # 'イベントで指定'
                                 end_time_str = end_time.strftime('%Y/%m/%d %H:%M')
                                 st.markdown(f"**イベント期間：{start_time_str} - {end_time_str}**", unsafe_allow_html=True)
 
-                            event_url = event_details_to_link.iloc[0]['URL']
-                            # 修正内容：イベントURLへのリンクを追加
-                            if pd.notna(event_url):
+                            # 💡 【今回追加する修正】: イベント結果の表示
+                            # 項目が存在するかチェックし、存在すれば値を取得
+                            event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else 'N/A'
+                            event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 'N/A'
+                            event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 'N/A'
+
+                            # ポイントにはカンマ区切りを適用（数値の場合のみ）
+                            try:
+                                event_point_display = f"{int(event_point):,}"
+                            except:
+                                event_point_display = str(event_point)
+
+                            # 結果を太字で表示
+                            st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
+
+                            # 以前の修正: イベントURLへのリンクを追加
+                            if 'URL' in event_details_to_link.columns:
+                                event_url = event_details_to_link.iloc[0]['URL']
+                            else:
+                                event_url = None
+                            
+                            if pd.notna(event_url) and event_url != '':
                                 st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
                     
                     else:
