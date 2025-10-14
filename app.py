@@ -518,14 +518,23 @@ if st.session_state.get('run_analysis', False):
             target_start = target_event.iloc[0]['開始日時']
             target_end = target_event.iloc[0]['終了日時']
 
-            # ✅ イベント名を付与（ここで「イベント名」列が追加されるだけ）
-            df = merge_event_data(df, event_df_master)
+            # ---- 重要: ここでは「列操作をしない」----
+            # 表示用の merge_event_data は一覧表示部分で実行しているので、
+            # ここで merge_event_data を呼ぶと列の追加や列順変化の副作用が出る可能性がある。
+            # したがって、ここでは「日時で絞るだけ」にする。
 
-            # ✅ 該当イベントのみ抽出
-            df = df[df['イベント名'] == selected_event_val].copy()
+            # start/end の範囲でまず絞る（df は load_and_preprocess_data で
+            # 既に start/end に基づくフィルタ済みのことが多いが、安全のため再チェック）
+            df = df[(df['配信日時'] >= target_start) & (df['配信日時'] <= target_end)].copy()
 
-            # ✅ イベント期間内のみを安全に抽出
-            df = df[(df['配信日時'] >= target_start) & (df['配信日時'] <= target_end)]
+            # ---- さらに念のため、アカウントID列が存在する場合は一致で絞る（副作用なし） ----
+            if 'アカウントID' in df.columns:
+                df = df[df['アカウントID'] == account_id].copy()
+
+            # ↑ここまでで「選択したイベント期間の配信だけ」に絞れているはず。
+            # 実際にイベント名列を付けたいのは、一覧表示直前の df_display で行っているので
+            # ここで再び merge_event_data を呼ぶ必要はありません。
+
 
 
     
