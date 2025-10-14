@@ -95,6 +95,40 @@ def fetch_room_name(room_id):
         st.error(f"⚠️ ルーム名取得中に予期せぬエラーが発生しました: {e}")
         return "ルーム名不明"
 
+# ★ 追加：イベントAPIから順位・ポイント・レベルを取得する関数
+def fetch_event_room_data_from_api(event_id, room_id):
+    """
+    SHOWROOMイベントAPIから特定のルームの順位、ポイント、レベルを取得する。
+    順位がないイベントの場合、順位は'-'とする。
+    """
+    api_url = f"https://www.showroom-live.com/api/event/room_list?event_id={event_id}"
+    try:
+        response = requests.get(api_url, timeout=10)
+        response.raise_for_status() # HTTPエラーをチェック
+        data = response.json()
+
+        for room_data in data.get("room_list", []):
+            if str(room_data.get("room_id")) == str(room_id):
+                event_entry = room_data.get("event_entry", {})
+                
+                # 'rank'がない場合はレベル型イベントと判断し、'-'を返す
+                rank = room_data.get("rank", "-") 
+                point = room_data.get("point", 0) # pointはroom_data直下
+                level = event_entry.get("quest_level", 0) # quest_levelはevent_entry内
+
+                return rank, point, level
+        return "-", 0, 0 # 見つからない場合
+    except requests.exceptions.RequestException as e:
+        st.error(f"⚠️ イベントAPIからのデータ取得に失敗しました (イベントID: {event_id}, ルームID: {room_id}): {e}")
+        return "-", 0, 0
+    except json.JSONDecodeError:
+        st.error(f"⚠️ イベントAPIからの応答が不正です (イベントID: {event_id})。")
+        return "-", 0, 0
+    except Exception as e:
+        st.error(f"⚠️ イベントAPIからのデータ取得中に予期せぬエラーが発生しました: {e}")
+        return "-", 0, 0
+
+
 def clear_analysis_results():
     """分析結果の表示状態をリセットするコールバック関数"""
     if 'run_analysis' in st.session_state:
@@ -163,7 +197,9 @@ else:  # 'イベントで指定'
                         if not event_details_to_link.empty:
                             start_time = event_details_to_link.iloc[0]['開始日時']
                             end_time = event_details_to_link.iloc[0]['終了日時']
-                            
+                            event_id = event_details_to_link.iloc[0]['イベントID'] # イベントIDも取得
+                            room_id_from_db = event_details_to_link.iloc[0]['ルームID'] # ルームIDも取得
+
                             # ご要望の修正: イベント期間の表示を太字で追加
                             if pd.notna(start_time) and pd.notna(end_time):
                                 start_time_str = start_time.strftime('%Y/%m/%d %H:%M')
@@ -171,15 +207,32 @@ else:  # 'イベントで指定'
                                 st.markdown(f"**イベント期間：{start_time_str} - {end_time_str}**", unsafe_allow_html=True)
 
                             # 💡 【今回追加する修正】: イベント結果の表示
-                            # 項目が存在するかチェックし、存在すれば値を取得
-                            event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else 'N/A'
-                            event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 'N/A'
-                            event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 'N/A'
+                            event_rank = 'N/A'
+                            event_point = 'N/A'
+                            event_level = 'N/A'
+
+                            # 終了日が未来のイベントの場合のみAPIから取得
+                            # today は datetime.date オブジェクト、end_time は pd.Timestamp オブジェクトなので比較のために変換
+                            if end_time.date() > today:
+                                if event_id and room_id_from_db:
+                                    # APIからデータを取得
+                                    api_rank, api_point, api_level = fetch_event_room_data_from_api(event_id, room_id_from_db)
+                                    event_rank = api_rank
+                                    event_point = api_point
+                                    event_level = api_level
+                                else:
+                                    st.warning("⚠️ リアルタイム情報を取得するためのイベントIDまたはルームIDが不足しています。")
+                            else:
+                                # 終了済みのイベントはDBから取得
+                                event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else 'N/A'
+                                event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 'N/A'
+                                event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 'N/A'
+
 
                             # ポイントにはカンマ区切りを適用（数値の場合のみ）
                             try:
                                 event_point_display = f"{int(event_point):,}"
-                            except:
+                            except (ValueError, TypeError): # int() 変換でエラーが出る場合も考慮
                                 event_point_display = str(event_point)
 
                             # 結果を太字で表示
@@ -718,7 +771,7 @@ if st.session_state.get('run_analysis', False):
             # ③ 「イベントで指定」モードかつ選択イベントがあれば、**選択イベント名だけを抽出**
             #    （これが今回の要求：選択イベント以外は表示しない）
             if st.session_state.get('analysis_type_selector') == 'イベントで指定':
-                # 選択イベントが selectbox で入っている変数名が selected_event_val の場合（UI側で同名を使っている想定）
+                # selectboxで使っている変数が selected_event_val ならそれを優先、なければセッションを参照
                 selected_ev = selected_event_val if 'selected_event_val' in locals() else None
                 # もしセッションに保持されているならそれを優先
                 if not selected_ev:
