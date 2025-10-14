@@ -170,29 +170,84 @@ else:  # 'イベントで指定'
                                 end_time_str = end_time.strftime('%Y/%m/%d %H:%M')
                                 st.markdown(f"**イベント期間：{start_time_str} - {end_time_str}**", unsafe_allow_html=True)
 
-                            # 💡 【今回追加する修正】: イベント結果の表示
-                            # 項目が存在するかチェックし、存在すれば値を取得
-                            event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else 'N/A'
-                            event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 'N/A'
-                            event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 'N/A'
+                            # --- ▼▼▼ 修正版：順位・ポイント・レベルの取得ロジック ▼▼▼ ---
+                            event_rank, event_point, event_level = "-", 0, 0  # デフォルト初期値
+                            use_api = False
 
-                            # ポイントにはカンマ区切りを適用（数値の場合のみ）
+                            # イベント期間情報を取得
+                            event_end = event_details_to_link.iloc[0]['終了日時'] if '終了日時' in event_details_to_link.columns else None
+                            room_id = str(event_details_to_link.iloc[0]['ルームID']) if 'ルームID' in event_details_to_link.columns else None
+
+                            # イベントURLから event_id を抽出
+                            event_id = None
+                            if 'URL' in event_details_to_link.columns:
+                                event_url = event_details_to_link.iloc[0]['URL']
+                                if pd.notna(event_url) and "event/" in event_url:
+                                    try:
+                                        event_id = event_url.split("event/")[1].split("?")[0].split("/")[0]
+                                    except:
+                                        event_id = None
+
+                            # --- イベントが開催中（終了日が未来）の場合はAPIを使用 ---
+                            if event_end is not None and pd.to_datetime(event_end) > datetime.now(pytz.timezone("Asia/Tokyo")):
+                                use_api = True
+
+                            if use_api and event_id:
+                                try:
+                                    # 全ページ巡回でデータ収集
+                                    all_rooms = []
+                                    page = 1
+                                    while True:
+                                        api_url = f"https://www.showroom-live.com/api/event/room_list?event_id={event_id}&p={page}"
+                                        response = requests.get(api_url, timeout=5)
+                                        if response.status_code != 200:
+                                            break
+                                        data = response.json()
+                                        if not data:
+                                            break
+                                        all_rooms.extend(data)
+                                        page += 1
+                                        # ページに500件未満なら終了
+                                        if len(data) < 500:
+                                            break
+
+                                    # 対象ルームを抽出
+                                    room_data = next((room for room in all_rooms if str(room.get("room_id")) == room_id), None)
+
+                                    if room_data:
+                                        event_rank = room_data.get("rank", "-")
+                                        event_point = room_data.get("point", 0)
+                                        event_level = room_data.get("event_entry", {}).get("quest_level", 0)
+                                    else:
+                                        st.warning("⚠️ 対象ルームの情報がAPI内に見つかりませんでした。CSVデータを使用します。")
+                                        raise ValueError("room not found")
+
+                                except Exception as e:
+                                    st.warning(f"⚠️ API取得失敗のため、CSVデータを使用します。詳細: {e}")
+                                    # フォールバック：CSVデータを使用
+                                    event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else "-"
+                                    event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 0
+                                    event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 0
+                            else:
+                                # イベント終了済み or event_idが不明の場合は従来通りCSVから取得
+                                event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else "-"
+                                event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 0
+                                event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 0
+
+                            # --- カンマ区切り整形・表示 ---
                             try:
                                 event_point_display = f"{int(event_point):,}"
                             except:
                                 event_point_display = str(event_point)
 
-                            # 結果を太字で表示
                             st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
 
-                            # 以前の修正: イベントURLへのリンクを追加
+                            # イベントページリンク（既存）
                             if 'URL' in event_details_to_link.columns:
                                 event_url = event_details_to_link.iloc[0]['URL']
-                            else:
-                                event_url = None
-                            
-                            if pd.notna(event_url) and event_url != '':
-                                st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
+                                if pd.notna(event_url) and event_url != '':
+                                    st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
+                            # --- ▲▲▲ 修正版ここまで ▲▲▲ ---
                     
                     else:
                         st.info("このアカウントIDに紐づくイベントはありません。")
