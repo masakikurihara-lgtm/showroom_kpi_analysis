@@ -512,6 +512,45 @@ if st.session_state.get('run_analysis', False):
     else:
         st.success("データの読み込みが完了しました！")
         
+        # --- ここから：イベント指定時は分析用データ自体を選択イベントの配信のみで上書きする ---
+        # event_df_master を取得
+        event_df_master = fetch_event_data()
+
+        # ① 「時間帯」列を先に作っておく（列順に影響を出さないように）
+        if '時間帯' not in df.columns:
+            df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
+
+        # ② 既存のマージ関数でイベント名を付与（元コードの merge_event_data を使用）
+        df = merge_event_data(df, event_df_master)
+
+        # ③ イベントで指定モードの場合は、選択イベントの**実際参加期間**の配信のみ抽出する
+        #    （選択イベント名が available か確認してから絞り込む）
+        if st.session_state.get('analysis_type_selector') == 'イベントで指定':
+            # selectboxで使っている変数が selected_event_val ならそれを優先、なければセッションを参照
+            selected_ev = selected_event_val if 'selected_event_val' in locals() and selected_event_val else st.session_state.get('selected_event_val', None)
+
+            if selected_ev:
+                # 選択イベントの期間を event_db から取得（アカウントIDで絞る）
+                ev_details = event_df_master[
+                    (event_df_master['アカウントID'] == account_id) &
+                    (event_df_master['イベント名'] == selected_ev)
+                ]
+                if not ev_details.empty:
+                    ev_start = ev_details.iloc[0]['開始日時']
+                    ev_end = ev_details.iloc[0]['終了日時']
+
+                    # **両方の条件**で絞る：① イベント名が選択イベント、かつ ② 配信日時がそのイベント期間内
+                    df = df[
+                        (df['イベント名'] == selected_ev) &
+                        (df['配信日時'] >= ev_start) &
+                        (df['配信日時'] <= ev_end)
+                    ].copy()
+                else:
+                    # イベント詳細が見つからなければ、念のためイベント名でのみフィルタ（堅牢化）
+                    df = df[df['イベント名'] == selected_ev].copy()
+        # --- ここまで ---
+        
+        
         if mksp_df is not None and not mksp_df.empty:
             numeric_cols_to_check = [
                 '合計視聴数', '初ルーム来訪者数', 'コメント人数', '初コメント人数', 'ギフト人数',
