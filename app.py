@@ -430,49 +430,46 @@ def categorize_time_of_day_with_range(hour):
     else: return "深夜 (0-3時)"
 
 def merge_event_data(df_to_merge, event_df):
-    """配信データにイベント名をマージする（選択イベントの正確な期間に限定）"""
+    """
+    配信データにイベント名をマージする
+    （複数イベント期間が重複する場合は、開始日時が最も新しいイベントを優先）
+    """
     if event_df.empty:
         df_to_merge['イベント名'] = ""
         return df_to_merge
 
     selected_event_name = None
-    selected_start = None
-    selected_end = None
-
-    # Streamlitセッションから選択イベントを取得
     if 'analysis_type_selector' in st.session_state and st.session_state.analysis_type_selector == 'イベントで指定':
         selected_event_name = st.session_state.get('selected_event_val', None)
-        if selected_event_name:
-            target_event = event_df[event_df['イベント名'] == selected_event_name]
-            if not target_event.empty:
-                selected_start = target_event.iloc[0]['開始日時']
-                selected_end = target_event.iloc[0]['終了日時']
 
     def find_event_name(row):
         account_id = str(row['アカウントID'])
         stream_time = row['配信日時']
 
+        # 対象アカウントの全イベント
         matching_events = event_df[
             (event_df['アカウントID'] == account_id) &
             (event_df['開始日時'] <= stream_time) &
             (event_df['終了日時'] >= stream_time)
         ]
 
-        # ✅ イベントで指定されている場合は、開始・終了日時が完全一致するイベントのみ残す
-        if selected_event_name and selected_start and selected_end:
-            matching_events = matching_events[
-                (matching_events['イベント名'] == selected_event_name) &
-                (matching_events['開始日時'] == selected_start) &
-                (matching_events['終了日時'] == selected_end)
-            ]
-
+        # ✅ 重複期間がある場合は、「開始日時が最も新しい」イベントを優先
         if not matching_events.empty:
-            return matching_events.iloc[0]['イベント名']
+            latest_event = matching_events.sort_values(by='開始日時', ascending=False).iloc[0]
+
+            # 「イベントで指定」している場合は、選択したイベント名のみ残す
+            if selected_event_name:
+                if latest_event['イベント名'] == selected_event_name:
+                    return latest_event['イベント名']
+                else:
+                    return ""
+            else:
+                return latest_event['イベント名']
+
         return ""
 
     df_to_merge['イベント名'] = df_to_merge.apply(find_event_name, axis=1)
     return df_to_merge
-
 
 
 
