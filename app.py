@@ -100,49 +100,6 @@ def clear_analysis_results():
     if 'run_analysis' in st.session_state:
         st.session_state.run_analysis = False
 
-
-# ============================================================
-# SHOWROOMイベントの貢献ランキングデータを全ページ取得（安全版）
-# ============================================================
-def fetch_event_contribution_data(event_id, max_pages=10):
-    """
-    SHOWROOMイベントの貢献ランキングデータを全ページ取得する
-    APIエラー時は None を返す（CSVフォールバックを想定）
-    """
-    all_data = []
-    HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; ShowroomKPIBot/1.0)"}
-
-    try:
-        for page in range(1, max_pages + 1):
-            url = f"https://www.showroom-live.com/api/event/contribution_ranking?event_id={event_id}&p={page}"
-            resp = requests.get(url, headers=HEADERS, timeout=10)
-
-            # JSON変換が失敗するケースに備える
-            try:
-                data = resp.json()
-            except Exception:
-                print(f"[WARN] JSON decode failed for page={page}: {resp.text[:200]}")
-                return None  # → CSVフォールバックへ
-
-            # データ形式の検証
-            if not isinstance(data, dict) or "ranking" not in data:
-                print(f"[WARN] Unexpected API response format on page={page}")
-                return None
-
-            ranking_list = data.get("ranking", [])
-            if not ranking_list:
-                break  # もうページがない
-
-            all_data.extend(ranking_list)
-
-        return all_data
-
-    except Exception as e:
-        print(f"[ERROR] API取得失敗: {e}")
-        return None
-
-
-
 # --- UI入力セクション ---
 # ⑤ アカウントIDをパスワード形式で入力
 account_id = st.text_input(
@@ -213,108 +170,29 @@ else:  # 'イベントで指定'
                                 end_time_str = end_time.strftime('%Y/%m/%d %H:%M')
                                 st.markdown(f"**イベント期間：{start_time_str} - {end_time_str}**", unsafe_allow_html=True)
 
-                            # --- ▼▼▼ 修正版：順位・ポイント・レベルの取得ロジック ▼▼▼ ---
-                            event_rank, event_point, event_level = "-", 0, 0  # デフォルト初期値
-                            use_api = False
+                            # 💡 【今回追加する修正】: イベント結果の表示
+                            # 項目が存在するかチェックし、存在すれば値を取得
+                            event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else 'N/A'
+                            event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 'N/A'
+                            event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 'N/A'
 
-                            # イベント期間情報を取得
-                            event_end = event_details_to_link.iloc[0]['終了日時'] if '終了日時' in event_details_to_link.columns else None
-                            room_id = str(event_details_to_link.iloc[0]['ルームID']) if 'ルームID' in event_details_to_link.columns else None
-
-                            # イベントURLから event_id を抽出
-                            event_id = None
-                            if 'URL' in event_details_to_link.columns:
-                                event_url = event_details_to_link.iloc[0]['URL']
-                                if pd.notna(event_url) and "event/" in event_url:
-                                    try:
-                                        event_id = event_url.split("event/")[1].split("?")[0].split("/")[0]
-                                    except:
-                                        event_id = None
-
-                            # --- イベント開催中かどうかを判定 ---
-                            use_api = False
-                            try:
-                                # event_end を JST タイムゾーン付きに変換（すでに tzinfo がある場合は変換しない）
-                                event_end_dt = pd.to_datetime(event_end, errors="coerce")
-                                if event_end_dt.tzinfo is None:
-                                    event_end_dt = event_end_dt.tz_localize("Asia/Tokyo")
-                                else:
-                                    event_end_dt = event_end_dt.tz_convert("Asia/Tokyo")
-
-                                now_jst = datetime.now(pytz.timezone("Asia/Tokyo"))
-
-                                if event_end_dt > now_jst:
-                                    use_api = True
-
-                            except Exception as e:
-                                st.warning(f"⚠️ イベント終了日時の判定に失敗しました: {e}")
-                                use_api = False
-
-                            # --- API取得 or CSVフォールバック処理 ---
-                            if use_api and event_id:
-                                try:
-                                    # ✅ 全ページ巡回でデータ収集（ページ上限なし）
-                                    all_rooms = []
-                                    page = 1
-                                    while True:
-                                        api_url = f"https://www.showroom-live.com/api/event/room_list?event_id={event_id}&p={page}"
-                                        response = requests.get(api_url, timeout=8)
-                                        if response.status_code != 200:
-                                            break
-
-                                        data = response.json()
-                                        # 応答が空、またはリストでない場合は終了
-                                        if not isinstance(data, list) or not data:
-                                            break
-
-                                        all_rooms.extend(data)
-                                        page += 1
-
-                                        # 1ページあたり500件未満なら最終ページと判断
-                                        if len(data) < 500:
-                                            break
-
-                                    # ✅ 対象ルーム抽出
-                                    room_data = next((room for room in all_rooms if str(room.get("room_id")) == str(room_id)), None)
-
-                                    if room_data:
-                                        event_rank = room_data.get("rank", "-")
-                                        event_point = room_data.get("point", 0)
-                                        event_level = room_data.get("event_entry", {}).get("quest_level", 0)
-                                    else:
-                                        st.warning("⚠️ 対象ルームがAPI結果に存在しません。CSVデータを使用します。")
-                                        raise ValueError("room not found")
-
-                                except Exception as e:
-                                    st.warning(f"⚠️ API取得失敗のため、CSVデータを使用します。詳細: {e}")
-                                    # --- CSVフォールバック ---
-                                    event_rank = event_details_to_link.iloc[0].get('順位', "-")
-                                    event_point = event_details_to_link.iloc[0].get('ポイント', 0)
-                                    event_level = event_details_to_link.iloc[0].get('レベル', 0)
-                            else:
-                                # --- 終了済みイベントまたはevent_id不明時 ---
-                                try:
-                                    event_rank = event_details_to_link.iloc[0].get('順位', "-")
-                                    event_point = event_details_to_link.iloc[0].get('ポイント', 0)
-                                    event_level = event_details_to_link.iloc[0].get('レベル', 0)
-                                except Exception as e:
-                                    st.warning(f"⚠️ CSVフォールバックでもデータ取得に失敗しました: {e}")
-                                    event_rank, event_point, event_level = "-", 0, 0
-
-                            # --- カンマ区切り整形・表示 ---
+                            # ポイントにはカンマ区切りを適用（数値の場合のみ）
                             try:
                                 event_point_display = f"{int(event_point):,}"
                             except:
                                 event_point_display = str(event_point)
 
+                            # 結果を太字で表示
                             st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
 
-                            # イベントページリンク（既存）
+                            # 以前の修正: イベントURLへのリンクを追加
                             if 'URL' in event_details_to_link.columns:
                                 event_url = event_details_to_link.iloc[0]['URL']
-                                if pd.notna(event_url) and event_url != '':
-                                    st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
-                            # --- ▲▲▲ 修正版ここまで ▲▲▲ ---
+                            else:
+                                event_url = None
+                            
+                            if pd.notna(event_url) and event_url != '':
+                                st.markdown(f"**▶ [イベントページへ移動する]({event_url})**", unsafe_allow_html=True)
                     
                     else:
                         st.info("このアカウントIDに紐づくイベントはありません。")
