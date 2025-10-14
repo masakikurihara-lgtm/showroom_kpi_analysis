@@ -45,6 +45,10 @@ def fetch_event_data():
         #event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
         event_url = "https://mksoul-pro.com/showroom/file/event_database.csv"
         event_df = pd.read_csv(event_url, dtype={'アカウントID': str, 'ルームID': str, 'イベントID': str})
+        
+        # ★★★ 追加：CSVの列名に含まれる可能性のある空白を除去 ★★★
+        event_df.columns = event_df.columns.str.strip()
+
         event_df['開始日時'] = pd.to_datetime(event_df['開始日時'], errors='coerce')
         event_df['終了日時'] = pd.to_datetime(event_df['終了日時'], errors='coerce')
         event_df_filtered = event_df[(event_df['紐付け'] == '○') & event_df['開始日時'].notna() & event_df['終了日時'].notna()].copy()
@@ -109,7 +113,7 @@ def fetch_event_room_data_from_api(event_id, room_id):
             response.raise_for_status()
             data = response.json()
             
-            # ★★★ APIレスポンスのキーを "room_list" から "list" に修正 ★★★
+            # APIレスポンスのキー "list" からルーム一覧を取得
             room_list = data.get("list", [])
             if not room_list:
                 # ルームリストが空なら最終ページなので検索終了
