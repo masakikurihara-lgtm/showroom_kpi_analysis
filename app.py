@@ -518,11 +518,11 @@ if st.session_state.get('run_analysis', False):
             target_start = target_event.iloc[0]['開始日時']
             target_end = target_event.iloc[0]['終了日時']
 
-            # ✅ イベント名を付与（ここで「イベント名」列が追加されるだけ）
-            #df = merge_event_data(df, event_df_master)
-
             # ✅ 該当イベントのみ抽出
             df = df[df['イベント名'] == selected_event_val].copy()
+
+            # ✅ イベント名を付与（ここで「イベント名」列が追加されるだけ）
+            df = merge_event_data(df, event_df_master)
 
             # ✅ イベント期間内のみを安全に抽出
             df = df[(df['配信日時'] >= target_start) & (df['配信日時'] <= target_end)]
