@@ -109,7 +109,8 @@ def fetch_event_room_data_from_api(event_id, room_id):
             response.raise_for_status()
             data = response.json()
             
-            room_list = data.get("room_list", [])
+            # ★★★ APIレスポンスのキーを "room_list" から "list" に修正 ★★★
+            room_list = data.get("list", [])
             if not room_list:
                 # ルームリストが空なら最終ページなので検索終了
                 return None, None, None
