@@ -156,6 +156,7 @@ else:  # 'イベントで指定'
                         selected_event_val = st.selectbox(
                             "分析するイベントを選択:", 
                             options=event_names,
+                            key='selected_event_val',  # ★追加！
                             on_change=clear_analysis_results
                         )
                         
@@ -429,27 +430,41 @@ def categorize_time_of_day_with_range(hour):
     else: return "深夜 (0-3時)"
 
 def merge_event_data(df_to_merge, event_df):
-    """配信データにイベント名をマージする"""
+    """配信データにイベント名をマージする（選択イベント以外を除外）"""
     if event_df.empty:
         df_to_merge['イベント名'] = ""
         return df_to_merge
 
+    selected_event_name = None
+    # Streamlitのセッションステートから選択イベントを取得（存在する場合）
+    if 'analysis_type_selector' in st.session_state and st.session_state.analysis_type_selector == 'イベントで指定':
+        selected_event_name = st.session_state.get('selected_event_val', None)
+        # セッションに存在しない場合は、外側の変数も確認
+        if not selected_event_name and 'selected_event_val' in globals():
+            selected_event_name = globals().get('selected_event_val', None)
+
     def find_event_name(row):
         account_id = str(row['アカウントID'])
         stream_time = row['配信日時']
-        
+
+        # 通常の期間一致条件
         matching_events = event_df[
             (event_df['アカウントID'] == account_id) &
             (event_df['開始日時'] <= stream_time) &
             (event_df['終了日時'] >= stream_time)
         ]
-        
+
+        # ✅ イベントで指定されている場合は、選択されたイベント名のみを残す
+        if selected_event_name:
+            matching_events = matching_events[matching_events['イベント名'] == selected_event_name]
+
         if not matching_events.empty:
             return matching_events.iloc[0]['イベント名']
         return ""
 
     df_to_merge['イベント名'] = df_to_merge.apply(find_event_name, axis=1)
     return df_to_merge
+
 
 
 # --- メインロジック ---
