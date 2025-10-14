@@ -156,7 +156,8 @@ def fetch_live_event_data(event_id, target_room_id):
                             pass
                     
                     # 順位の整形
-                    event_rank = str(rank_val) if rank_val is not None else "-"
+                    # 順位がないイベント（レベル型イベント）の場合、順位は「-」とする
+                    event_rank = str(rank_val) if rank_val is not None and (isinstance(rank_val, int) or str(rank_val).isdigit()) else "-"
                     
                     # ポイントの整形
                     try:
@@ -267,32 +268,34 @@ else:  # 'イベントで指定'
                             event_id = event_details_for_analysis.get('イベントID')
                             room_id_str = str(event_details_for_analysis.get('ルームID')) # ルームIDは文字列として取得
 
+                            # APIから取得した結果を保持する変数
+                            api_rank, api_point, api_level, api_error = None, None, None, None
+                            is_api_success = False
+
                             # イベント終了日時と現在時刻を比較（終了日が未来の場合）
                             if pd.notna(end_time) and end_time.tz_localize(JST) > now_jst and event_id and room_id_str:
                                 # 終了日が未来の場合、APIから動的に取得を試みる
                                 st.info("📢 イベント開催中のため、最新の順位・ポイント・レベルをSHOWROOM APIから取得します。")
                                 api_rank, api_point, api_level, api_error = fetch_live_event_data(event_id, room_id_str)
                                 
-                                if api_error:
-                                    st.warning(api_error + "代わりにデータベースの情報を表示します。")
-                                    # APIエラーの場合、DBの情報を表示（フォールバック）
-                                    event_rank = event_details_for_analysis['順位'] if '順位' in event_details_for_analysis else 'N/A'
-                                    event_point = event_details_for_analysis['ポイント'] if 'ポイント' in event_details_for_analysis else 'N/A'
-                                    event_level = event_details_for_analysis['レベル'] if 'レベル' in event_details_for_analysis else 'N/A'
-                                    # ポイントにはカンマ区切りを適用（数値の場合のみ）
-                                    try:
-                                        event_point_display = f"{int(event_point):,}"
-                                    except:
-                                        event_point_display = str(event_point)
-                                    st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
-
-                                else:
+                                if not api_error and api_rank is not None:
                                     # API取得成功の場合
+                                    is_api_success = True
                                     event_point_display = f"{api_point:,}"
-                                    st.markdown(f"**（最新）順位：{api_rank} / ポイント：{event_point_display} / レベル：{api_level}**", unsafe_allow_html=True)
-
-                            else:
-                                # 終了日が過去の場合、またはイベントID/ルームIDがない場合、DBの情報を表示
+                                    # 表示をAPIの結果に完全に置き換える
+                                    st.markdown(
+                                        f"**（最新）**<br>" # ★ 修正：改行を追加
+                                        f"**順位：{api_rank}** / **ポイント：{event_point_display}** / **レベル：{api_level}**", 
+                                        unsafe_allow_html=True
+                                    )
+                                else:
+                                    # APIエラーの場合、エラーメッセージを表示し、DBの情報を表示（フォールバック）
+                                    st.warning(api_error + "代わりにデータベースの情報を表示します。")
+                            
+                            
+                            # APIで取得できなかった（または、終了日が過去の）場合、DBの情報を表示
+                            if not is_api_success:
+                                # 終了日が過去の場合、またはAPIエラーの場合、DBの情報を表示
                                 # 項目が存在するかチェックし、存在すれば値を取得
                                 event_rank = event_details_for_analysis['順位'] if '順位' in event_details_for_analysis else 'N/A'
                                 event_point = event_details_for_analysis['ポイント'] if 'ポイント' in event_details_for_analysis else 'N/A'
@@ -305,7 +308,8 @@ else:  # 'イベントで指定'
                                     event_point_display = str(event_point)
 
                                 # 結果を太字で表示
-                                st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
+                                st.markdown(f"**順位：{event_rank}** / **ポイント：{event_point_display}** / **レベル：{event_level}**", unsafe_allow_html=True)
+
 
                             # 以前の修正: イベントURLへのリンクを追加
                             if 'URL' in event_details_for_analysis:
