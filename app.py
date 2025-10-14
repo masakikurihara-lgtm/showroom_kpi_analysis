@@ -189,7 +189,7 @@ else:  # 'イベントで指定'
                                         event_id = None
 
                             # --- イベントが開催中（終了日が未来）の場合はAPIを使用 ---
-                            if event_end is not None and pd.to_datetime(event_end) > datetime.now(pytz.timezone("Asia/Tokyo")):
+                            if event_end is not None and pd.to_datetime(event_end).tz_localize(None) > datetime.now(pytz.timezone("Asia/Tokyo")).replace(tzinfo=None):
                                 use_api = True
 
                             if use_api and event_id:
