@@ -517,12 +517,26 @@ if st.session_state.get('run_analysis', False):
         if not target_event.empty:
             target_start = target_event.iloc[0]['開始日時']
             target_end = target_event.iloc[0]['終了日時']
-            # 配信データにイベントをマージ
+
+            # ✅ 先に「時間帯」列を生成（順序を崩さないため）
+            if '時間帯' not in df.columns:
+                df['時間帯'] = df['配信日時'].dt.hour.apply(categorize_time_of_day_with_range)
+
+            # ✅ イベントマージ（ここで列が末尾に追加される）
             df = merge_event_data(df, event_df_master)
-            # 選択イベントのみを抽出
+
+            # ✅ 選択イベントで絞り込み
             df = df[df['イベント名'] == selected_event_val].copy()
-            # 期間範囲でさらに絞り込み（安全策）
+
+            # ✅ 期間範囲も念のため絞り込み
             df = df[(df['配信日時'] >= target_start) & (df['配信日時'] <= target_end)]
+
+            # ✅ 列順を「期間で指定」と統一（時間帯 → イベント名 の順）
+            cols = list(df.columns)
+            if '時間帯' in cols and 'イベント名' in cols:
+                cols.remove('時間帯')
+                cols.remove('イベント名')
+                df = df[['配信日時', '時間帯', 'イベント名'] + [c for c in cols if c not in ['配信日時']]]
 
     
     if df is None or df.empty:
