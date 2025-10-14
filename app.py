@@ -37,6 +37,11 @@ st.markdown(
 st.markdown("---")
 
 
+# 日本時間（JST）を明示的に指定
+JST = pytz.timezone('Asia/Tokyo')
+# 現在時刻（タイムゾーン付き）
+now_jst = datetime.now(JST)
+
 # --- 関数定義 ---
 #@st.cache_data(ttl=60) # キャッシュ保持を60秒に変更
 def fetch_event_data():
@@ -44,7 +49,7 @@ def fetch_event_data():
     try:
         #event_url = "https://mksoul-pro.com/showroom/file/sr-event-entry.csv"
         event_url = "https://mksoul-pro.com/showroom/file/event_database.csv"
-        event_df = pd.read_csv(event_url, dtype={'アカウントID': str})
+        event_df = pd.read_csv(event_url, dtype={'アカウントID': str, 'イベントID': str}) # イベントIDのdtypeも追加
         event_df['開始日時'] = pd.to_datetime(event_df['開始日時'], errors='coerce')
         event_df['終了日時'] = pd.to_datetime(event_df['終了日時'], errors='coerce')
         event_df_filtered = event_df[(event_df['紐付け'] == '○') & event_df['開始日時'].notna() & event_df['終了日時'].notna()].copy()
@@ -95,6 +100,91 @@ def fetch_room_name(room_id):
         st.error(f"⚠️ ルーム名取得中に予期せぬエラーが発生しました: {e}")
         return "ルーム名不明"
 
+
+# ★★★ 【修正1: 新規関数追加】 リアルタイムイベント結果取得関数 ★★★
+@st.cache_data(ttl=300) # 5分キャッシュ
+def fetch_live_event_data(event_id, target_room_id):
+    """
+    SHOWROOM APIからイベントのリアルタイム順位、ポイント、レベルを取得する。
+    """
+    if not event_id or not target_room_id:
+        return None, None, None, "イベントIDまたはルームIDが不足しています。"
+
+    # target_room_id が 'mksp' の場合は処理しない
+    if target_room_id == "mksp":
+        return None, None, None, "mkspアカウントではリアルタイムデータは取得できません。"
+
+    base_url = "https://www.showroom-live.com/api/event/room_list"
+    
+    try:
+        # 複数ページ取得（対象ルームを見つけるか、安全上限に達するまで）
+        all_rooms = []
+        # 1ページあたり30ルーム表示されるため、10ページ（300ルーム）までを上限とする
+        for page in range(1, 11):
+            url = f"{base_url}?event_id={event_id}&p={page}"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            rooms = data.get("list") or data.get("room_list") or []
+
+            if not rooms:
+                break
+            
+            all_rooms.extend(rooms)
+            
+            # 対象ルームが見つかった場合、これ以上のページは不要だが、
+            # ランキング型イベントの正確な順位（APIのrank）を知るために、
+            # 一旦全ページ取得ロジックを踏む（今回は単純化のため省略）
+            # ここではシンプルに、対象ルームのデータが見つかったらその情報だけを抽出する
+
+            for room in rooms:
+                room_id = str(room.get("room_id") or room.get("roomId"))
+                if room_id == target_room_id:
+                    # 情報を抽出
+                    rank_val = room.get("rank") or room.get("position")
+                    point_val = room.get("point") or room.get("event_point") or 0
+                    
+                    # quest_levelの取得
+                    quest_level = None
+                    ev_entry = room.get("event_entry") or room.get("eventEntry") or {}
+                    if isinstance(ev_entry, dict):
+                        quest_level = ev_entry.get("quest_level") or ev_entry.get("questLevel") or ev_entry.get("level")
+                        try:
+                            if quest_level is not None:
+                                quest_level = int(quest_level)
+                        except Exception:
+                            pass
+                    
+                    # 順位の整形
+                    event_rank = str(rank_val) if rank_val is not None else "-"
+                    
+                    # ポイントの整形
+                    try:
+                        event_point = int(point_val)
+                    except:
+                        event_point = 0
+                    
+                    # レベルの整形
+                    event_level = str(quest_level) if quest_level is not None else "-"
+                    
+                    # エラーメッセージなしで返す
+                    return event_rank, event_point, event_level, None
+            
+            # ページが少なければ早期抜け
+            if len(rooms) < 30:
+                break
+
+
+        # 全ページを探しても見つからなかった場合
+        return "-", 0, "-", "⚠️ APIから対象ルームの情報が見つかりませんでした。"
+
+    except requests.exceptions.RequestException as e:
+        return None, None, None, f"⚠️ API通信エラー: {e}"
+    except json.JSONDecodeError:
+        return None, None, None, "⚠️ APIから無効な応答が返されました。"
+    except Exception as e:
+        return None, None, None, f"⚠️ ランキング取得中に予期せぬエラーが発生しました: {e}"
+
 def clear_analysis_results():
     """分析結果の表示状態をリセットするコールバック関数"""
     if 'run_analysis' in st.session_state:
@@ -126,6 +216,7 @@ today = datetime.now(JST).date()
 # UI要素の状態を保持する変数を初期化
 selected_date_range_val = None
 selected_event_val = None
+event_details_for_analysis = None # イベント詳細を保持するための変数
 
 # 条件に応じた入力ウィジェットの表示
 if analysis_type == '期間で指定':
@@ -156,13 +247,15 @@ else:  # 'イベントで指定'
                         selected_event_val = st.selectbox(
                             "分析するイベントを選択:", 
                             options=event_names,
+                            key='selected_event_val_key', # session_stateに保存するためにkeyを設定
                             on_change=clear_analysis_results
                         )
                         
                         event_details_to_link = user_events[user_events['イベント名'] == selected_event_val]
                         if not event_details_to_link.empty:
-                            start_time = event_details_to_link.iloc[0]['開始日時']
-                            end_time = event_details_to_link.iloc[0]['終了日時']
+                            event_details_for_analysis = event_details_to_link.iloc[0] # イベント詳細を保存
+                            start_time = event_details_for_analysis['開始日時']
+                            end_time = event_details_for_analysis['終了日時']
                             
                             # ご要望の修正: イベント期間の表示を太字で追加
                             if pd.notna(start_time) and pd.notna(end_time):
@@ -170,24 +263,53 @@ else:  # 'イベントで指定'
                                 end_time_str = end_time.strftime('%Y/%m/%d %H:%M')
                                 st.markdown(f"**イベント期間：{start_time_str} - {end_time_str}**", unsafe_allow_html=True)
 
-                            # 💡 【今回追加する修正】: イベント結果の表示
-                            # 項目が存在するかチェックし、存在すれば値を取得
-                            event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else 'N/A'
-                            event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 'N/A'
-                            event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 'N/A'
+                            # 💡 【修正2: 動的項目表示ロジックの変更】
+                            event_id = event_details_for_analysis.get('イベントID')
+                            room_id_str = str(event_details_for_analysis.get('ルームID')) # ルームIDは文字列として取得
 
-                            # ポイントにはカンマ区切りを適用（数値の場合のみ）
-                            try:
-                                event_point_display = f"{int(event_point):,}"
-                            except:
-                                event_point_display = str(event_point)
+                            # イベント終了日時と現在時刻を比較（終了日が未来の場合）
+                            if pd.notna(end_time) and end_time.tz_localize(JST) > now_jst and event_id and room_id_str:
+                                # 終了日が未来の場合、APIから動的に取得を試みる
+                                st.info("📢 イベント開催中のため、最新の順位・ポイント・レベルをSHOWROOM APIから取得します。")
+                                api_rank, api_point, api_level, api_error = fetch_live_event_data(event_id, room_id_str)
+                                
+                                if api_error:
+                                    st.warning(api_error + "代わりにデータベースの情報を表示します。")
+                                    # APIエラーの場合、DBの情報を表示（フォールバック）
+                                    event_rank = event_details_for_analysis['順位'] if '順位' in event_details_for_analysis else 'N/A'
+                                    event_point = event_details_for_analysis['ポイント'] if 'ポイント' in event_details_for_analysis else 'N/A'
+                                    event_level = event_details_for_analysis['レベル'] if 'レベル' in event_details_for_analysis else 'N/A'
+                                    # ポイントにはカンマ区切りを適用（数値の場合のみ）
+                                    try:
+                                        event_point_display = f"{int(event_point):,}"
+                                    except:
+                                        event_point_display = str(event_point)
+                                    st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
 
-                            # 結果を太字で表示
-                            st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
+                                else:
+                                    # API取得成功の場合
+                                    event_point_display = f"{api_point:,}"
+                                    st.markdown(f"**（最新）順位：{api_rank} / ポイント：{event_point_display} / レベル：{api_level}**", unsafe_allow_html=True)
+
+                            else:
+                                # 終了日が過去の場合、またはイベントID/ルームIDがない場合、DBの情報を表示
+                                # 項目が存在するかチェックし、存在すれば値を取得
+                                event_rank = event_details_for_analysis['順位'] if '順位' in event_details_for_analysis else 'N/A'
+                                event_point = event_details_for_analysis['ポイント'] if 'ポイント' in event_details_for_analysis else 'N/A'
+                                event_level = event_details_for_analysis['レベル'] if 'レベル' in event_details_for_analysis else 'N/A'
+
+                                # ポイントにはカンマ区切りを適用（数値の場合のみ）
+                                try:
+                                    event_point_display = f"{int(event_point):,}"
+                                except:
+                                    event_point_display = str(event_point)
+
+                                # 結果を太字で表示
+                                st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
 
                             # 以前の修正: イベントURLへのリンクを追加
-                            if 'URL' in event_details_to_link.columns:
-                                event_url = event_details_to_link.iloc[0]['URL']
+                            if 'URL' in event_details_for_analysis:
+                                event_url = event_details_for_analysis['URL']
                             else:
                                 event_url = None
                             
@@ -277,12 +399,12 @@ def load_and_preprocess_data(account_id, start_date, end_date):
                 st.error(f"❌ データの取得中に予期せぬエラーが発生しました: {e}")
                 progress_bar.empty()
                 progress_text.empty()
-                return None, None
+                return None, None, None, None
         except Exception as e:
             st.error(f"❌ CSVファイルの処理中に予期せぬエラーが発生しました。詳細: {e}")
             progress_bar.empty()
             progress_text.empty()
-            return None, None
+            return None, None, None, None
             
     if not all_dfs:
         st.error(f"選択された期間のデータが一つも見つかりませんでした。")
@@ -473,6 +595,9 @@ if st.button("分析を実行"):
                 st.error("有効な期間が選択されていません。")
         
         else:  # 'イベントで指定'
+            # selected_event_val は on_change で更新されないため、keyを使ってsession_stateから取得する
+            selected_event_val = st.session_state.get('selected_event_val_key')
+            
             if not selected_event_val:
                 st.error("分析対象のイベントが選択されていません。")
             else:
@@ -492,6 +617,7 @@ if st.button("分析を実行"):
             st.session_state.start_date = final_start_date
             st.session_state.end_date = final_end_date
             st.session_state.account_id = account_id
+            st.session_state.selected_event_val = selected_event_val # イベント名もセッションに保存
         else:
             st.session_state.run_analysis = False
 
@@ -503,6 +629,9 @@ if st.session_state.get('run_analysis', False):
     start_date = st.session_state.start_date
     end_date = st.session_state.end_date
     account_id = st.session_state.account_id # 保存したaccount_idを使用
+    
+    # イベント指定の場合は、ここでselected_event_valを取得する
+    selected_ev = st.session_state.get('selected_event_val', None)
 
     mksp_df, df, room_id, room_name = load_and_preprocess_data(account_id, start_date, end_date)
     
@@ -524,11 +653,7 @@ if st.session_state.get('run_analysis', False):
         df = merge_event_data(df, event_df_master)
 
         # ③ イベントで指定モードの場合は、選択イベントの**実際参加期間**の配信のみ抽出する
-        #    （選択イベント名が available か確認してから絞り込む）
         if st.session_state.get('analysis_type_selector') == 'イベントで指定':
-            # selectboxで使っている変数が selected_event_val ならそれを優先、なければセッションを参照
-            selected_ev = selected_event_val if 'selected_event_val' in locals() and selected_event_val else st.session_state.get('selected_event_val', None)
-
             if selected_ev:
                 # 選択イベントの期間を event_db から取得（アカウントIDで絞る）
                 ev_details = event_df_master[
@@ -548,6 +673,13 @@ if st.session_state.get('run_analysis', False):
                 else:
                     # イベント詳細が見つからなければ、念のためイベント名でのみフィルタ（堅牢化）
                     df = df[df['イベント名'] == selected_ev].copy()
+            
+            # イベント選択の結果、データが空になった場合はエラーを出す
+            if df.empty:
+                st.error(f"選択されたイベント期間 ({selected_ev}) に、対象アカウント（{account_id}）の配信データが見つかりませんでした。")
+                st.session_state.run_analysis = False
+                st.stop()
+                
         # --- ここまで ---
         
         
@@ -718,12 +850,10 @@ if st.session_state.get('run_analysis', False):
             # ③ 「イベントで指定」モードかつ選択イベントがあれば、**選択イベント名だけを抽出**
             #    （これが今回の要求：選択イベント以外は表示しない）
             if st.session_state.get('analysis_type_selector') == 'イベントで指定':
-                # 選択イベントが selectbox で入っている変数名が selected_event_val の場合（UI側で同名を使っている想定）
-                selected_ev = selected_event_val if 'selected_event_val' in locals() else None
-                # もしセッションに保持されているならそれを優先
-                if not selected_ev:
-                    selected_ev = st.session_state.get('selected_event_val', None)
+                selected_ev = st.session_state.get('selected_event_val', None)
                 if selected_ev:
+                    # イベント名のフィルタリングはデータの絞り込み時に既に実施済みだが、
+                    # 念のため、表示用DFにも再度フィルタをかける（冗長だが安全のため）
                     df_display = df_display[df_display['イベント名'] == selected_ev].copy()
             # --- ここまで修正 ---
             
