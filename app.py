@@ -522,7 +522,7 @@ if st.session_state.get('run_analysis', False):
             #df = merge_event_data(df, event_df_master)
 
             # ✅ 該当イベントのみ抽出
-            #df = df[df['イベント名'] == selected_event_val].copy()
+            df = df[df['イベント名'] == selected_event_val].copy()
 
             # ✅ イベント期間内のみを安全に抽出
             df = df[(df['配信日時'] >= target_start) & (df['配信日時'] <= target_end)]
