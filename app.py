@@ -100,6 +100,49 @@ def clear_analysis_results():
     if 'run_analysis' in st.session_state:
         st.session_state.run_analysis = False
 
+
+# ============================================================
+# SHOWROOMイベントの貢献ランキングデータを全ページ取得（安全版）
+# ============================================================
+def fetch_event_contribution_data(event_id, max_pages=10):
+    """
+    SHOWROOMイベントの貢献ランキングデータを全ページ取得する
+    APIエラー時は None を返す（CSVフォールバックを想定）
+    """
+    all_data = []
+    HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; ShowroomKPIBot/1.0)"}
+
+    try:
+        for page in range(1, max_pages + 1):
+            url = f"https://www.showroom-live.com/api/event/contribution_ranking?event_id={event_id}&p={page}"
+            resp = requests.get(url, headers=HEADERS, timeout=10)
+
+            # JSON変換が失敗するケースに備える
+            try:
+                data = resp.json()
+            except Exception:
+                print(f"[WARN] JSON decode failed for page={page}: {resp.text[:200]}")
+                return None  # → CSVフォールバックへ
+
+            # データ形式の検証
+            if not isinstance(data, dict) or "ranking" not in data:
+                print(f"[WARN] Unexpected API response format on page={page}")
+                return None
+
+            ranking_list = data.get("ranking", [])
+            if not ranking_list:
+                break  # もうページがない
+
+            all_data.extend(ranking_list)
+
+        return all_data
+
+    except Exception as e:
+        print(f"[ERROR] API取得失敗: {e}")
+        return None
+
+
+
 # --- UI入力セクション ---
 # ⑤ アカウントIDをパスワード形式で入力
 account_id = st.text_input(
@@ -188,51 +231,65 @@ else:  # 'イベントで指定'
                                     except:
                                         event_id = None
 
-                            # --- イベントが開催中（終了日が未来）の場合はAPIを使用 ---
-                            if event_end is not None and pd.to_datetime(event_end).tz_localize(None) > datetime.now(pytz.timezone("Asia/Tokyo")).replace(tzinfo=None):
-                                use_api = True
+                            # --- イベント開催中かどうかを判定 ---
+                            use_api = False
+                            try:
+                                if event_end is not None and pd.to_datetime(event_end) > datetime.now(pytz.timezone("Asia/Tokyo")):
+                                    use_api = True
+                            except Exception as e:
+                                st.warning(f"⚠️ イベント終了日時の判定に失敗しました: {e}")
+                                use_api = False
 
+                            # --- API取得 or CSVフォールバック処理 ---
                             if use_api and event_id:
                                 try:
-                                    # 全ページ巡回でデータ収集
+                                    # ✅ 全ページ巡回でデータ収集（ページ上限なし）
                                     all_rooms = []
                                     page = 1
                                     while True:
                                         api_url = f"https://www.showroom-live.com/api/event/room_list?event_id={event_id}&p={page}"
-                                        response = requests.get(api_url, timeout=5)
+                                        response = requests.get(api_url, timeout=8)
                                         if response.status_code != 200:
                                             break
+
                                         data = response.json()
-                                        if not data:
+                                        # 応答が空、またはリストでない場合は終了
+                                        if not isinstance(data, list) or not data:
                                             break
+
                                         all_rooms.extend(data)
                                         page += 1
-                                        # ページに500件未満なら終了
+
+                                        # 1ページあたり500件未満なら最終ページと判断
                                         if len(data) < 500:
                                             break
 
-                                    # 対象ルームを抽出
-                                    room_data = next((room for room in all_rooms if str(room.get("room_id")) == room_id), None)
+                                    # ✅ 対象ルーム抽出
+                                    room_data = next((room for room in all_rooms if str(room.get("room_id")) == str(room_id)), None)
 
                                     if room_data:
                                         event_rank = room_data.get("rank", "-")
                                         event_point = room_data.get("point", 0)
                                         event_level = room_data.get("event_entry", {}).get("quest_level", 0)
                                     else:
-                                        st.warning("⚠️ 対象ルームの情報がAPI内に見つかりませんでした。CSVデータを使用します。")
+                                        st.warning("⚠️ 対象ルームがAPI結果に存在しません。CSVデータを使用します。")
                                         raise ValueError("room not found")
 
                                 except Exception as e:
                                     st.warning(f"⚠️ API取得失敗のため、CSVデータを使用します。詳細: {e}")
-                                    # フォールバック：CSVデータを使用
-                                    event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else "-"
-                                    event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 0
-                                    event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 0
+                                    # --- CSVフォールバック ---
+                                    event_rank = event_details_to_link.iloc[0].get('順位', "-")
+                                    event_point = event_details_to_link.iloc[0].get('ポイント', 0)
+                                    event_level = event_details_to_link.iloc[0].get('レベル', 0)
                             else:
-                                # イベント終了済み or event_idが不明の場合は従来通りCSVから取得
-                                event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else "-"
-                                event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 0
-                                event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 0
+                                # --- 終了済みイベントまたはevent_id不明時 ---
+                                try:
+                                    event_rank = event_details_to_link.iloc[0].get('順位', "-")
+                                    event_point = event_details_to_link.iloc[0].get('ポイント', 0)
+                                    event_level = event_details_to_link.iloc[0].get('レベル', 0)
+                                except Exception as e:
+                                    st.warning(f"⚠️ CSVフォールバックでもデータ取得に失敗しました: {e}")
+                                    event_rank, event_point, event_level = "-", 0, 0
 
                             # --- カンマ区切り整形・表示 ---
                             try:
