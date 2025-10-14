@@ -429,7 +429,7 @@ def categorize_time_of_day_with_range(hour):
     else: return "深夜 (0-3時)"
 
 def merge_event_data(df_to_merge, event_df):
-    """配信データにイベント名をマージする"""
+    """配信データにイベント名をマージする（重複期間は最新開始イベントを優先）"""
     if event_df.empty:
         df_to_merge['イベント名'] = ""
         return df_to_merge
@@ -437,15 +437,18 @@ def merge_event_data(df_to_merge, event_df):
     def find_event_name(row):
         account_id = str(row['アカウントID'])
         stream_time = row['配信日時']
-        
+
+        # 該当アカウントの、配信日時が期間内のイベントを抽出
         matching_events = event_df[
             (event_df['アカウントID'] == account_id) &
             (event_df['開始日時'] <= stream_time) &
             (event_df['終了日時'] >= stream_time)
         ]
-        
+
+        # ✅ 重複していた場合は「開始日時が最も新しいイベント」を優先
         if not matching_events.empty:
-            return matching_events.iloc[0]['イベント名']
+            latest_event = matching_events.sort_values('開始日時', ascending=False).iloc[0]
+            return latest_event['イベント名']
         return ""
 
     df_to_merge['イベント名'] = df_to_merge.apply(find_event_name, axis=1)
