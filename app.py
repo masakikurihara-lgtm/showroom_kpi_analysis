@@ -506,6 +506,25 @@ if st.session_state.get('run_analysis', False):
 
     mksp_df, df, room_id, room_name = load_and_preprocess_data(account_id, start_date, end_date)
     
+    # --- 修正追加: イベントで指定時は選択イベントのみのデータに限定 ---
+    if st.session_state.analysis_type_selector == 'イベントで指定' and selected_event_val:
+        event_df_master = fetch_event_data()
+        # 対象イベントの期間を取得
+        target_event = event_df_master[
+            (event_df_master['アカウントID'] == account_id) &
+            (event_df_master['イベント名'] == selected_event_val)
+        ]
+        if not target_event.empty:
+            target_start = target_event.iloc[0]['開始日時']
+            target_end = target_event.iloc[0]['終了日時']
+            # 配信データにイベントをマージ
+            df = merge_event_data(df, event_df_master)
+            # 選択イベントのみを抽出
+            df = df[df['イベント名'] == selected_event_val].copy()
+            # 期間範囲でさらに絞り込み（安全策）
+            df = df[(df['配信日時'] >= target_start) & (df['配信日時'] <= target_end)]
+
+    
     if df is None or df.empty:
         st.error("指定された期間・アカウントIDの配信データが見つかりませんでした。アカウントIDや期間を再度ご確認ください。")
         st.session_state.run_analysis = False # 分析を中断する
