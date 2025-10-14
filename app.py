@@ -667,28 +667,6 @@ if st.session_state.get('run_analysis', False):
             st.subheader("📝 配信ごとの詳細データ")
             df_display = df.sort_values(by="配信日時", ascending=False).copy()
             event_df_master = fetch_event_data()
-            
-            # --- 修正追加: イベントで指定時は選択イベントのみのデータに限定 ---
-            if st.session_state.analysis_type_selector == 'イベントで指定' and selected_event_val:
-                event_df_master = fetch_event_data()
-                # 対象イベントの期間を取得
-                target_event = event_df_master[
-                    (event_df_master['アカウントID'] == account_id) &
-                    (event_df_master['イベント名'] == selected_event_val)
-                ]
-                if not target_event.empty:
-                    target_start = target_event.iloc[0]['開始日時']
-                    target_end = target_event.iloc[0]['終了日時']
-
-                    # ✅ イベント名を付与（ここで「イベント名」列が追加されるだけ）
-                    df = merge_event_data(df, event_df_master)
-
-                    # ✅ 該当イベントのみ抽出
-                    df = df[df['イベント名'] == selected_event_val].copy()
-
-                    # ✅ イベント期間内のみを安全に抽出
-                    df = df[(df['配信日時'] >= target_start) & (df['配信日時'] <= target_end)]
-            
             df_display = merge_event_data(df_display, event_df_master)
             
             # 修正: ルーム名列を追加
