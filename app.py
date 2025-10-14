@@ -234,8 +234,18 @@ else:  # 'イベントで指定'
                             # --- イベント開催中かどうかを判定 ---
                             use_api = False
                             try:
-                                if event_end is not None and pd.to_datetime(event_end) > datetime.now(pytz.timezone("Asia/Tokyo")):
+                                # event_end を JST タイムゾーン付きに変換（すでに tzinfo がある場合は変換しない）
+                                event_end_dt = pd.to_datetime(event_end, errors="coerce")
+                                if event_end_dt.tzinfo is None:
+                                    event_end_dt = event_end_dt.tz_localize("Asia/Tokyo")
+                                else:
+                                    event_end_dt = event_end_dt.tz_convert("Asia/Tokyo")
+
+                                now_jst = datetime.now(pytz.timezone("Asia/Tokyo"))
+
+                                if event_end_dt > now_jst:
                                     use_api = True
+
                             except Exception as e:
                                 st.warning(f"⚠️ イベント終了日時の判定に失敗しました: {e}")
                                 use_api = False
