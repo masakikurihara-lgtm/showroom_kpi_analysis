@@ -164,26 +164,81 @@ else:  # 'イベントで指定'
                             start_time = event_details_to_link.iloc[0]['開始日時']
                             end_time = event_details_to_link.iloc[0]['終了日時']
                             
-                            # ご要望の修正: イベント期間の表示を太字で追加
+                            # 💡 【ここを置き換え】順位・ポイント・レベル表示部
                             if pd.notna(start_time) and pd.notna(end_time):
                                 start_time_str = start_time.strftime('%Y/%m/%d %H:%M')
                                 end_time_str = end_time.strftime('%Y/%m/%d %H:%M')
                                 st.markdown(f"**イベント期間：{start_time_str} - {end_time_str}**", unsafe_allow_html=True)
 
-                            # 💡 【今回追加する修正】: イベント結果の表示
-                            # 項目が存在するかチェックし、存在すれば値を取得
-                            event_rank = event_details_to_link.iloc[0]['順位'] if '順位' in event_details_to_link.columns else 'N/A'
-                            event_point = event_details_to_link.iloc[0]['ポイント'] if 'ポイント' in event_details_to_link.columns else 'N/A'
-                            event_level = event_details_to_link.iloc[0]['レベル'] if 'レベル' in event_details_to_link.columns else 'N/A'
+                            # ==============================================
+                            # ✅ 新ロジック: 終了日が未来ならAPIで取得、それ以外はCSV
+                            # ==============================================
+                            use_api = False
+                            try:
+                                JST = pytz.timezone("Asia/Tokyo")
+                                now_jst = datetime.now(JST)
+                                event_end_jst = end_time if end_time.tzinfo else JST.localize(end_time)
+                                if event_end_jst > now_jst:
+                                    use_api = True
+                            except Exception as e:
+                                st.warning(f"⚠️ イベント終了日時の判定に失敗しました ({e})")
+                                use_api = False
 
-                            # ポイントにはカンマ区切りを適用（数値の場合のみ）
+                            event_rank = event_point = event_level = "N/A"
+
+                            if use_api:
+                                try:
+                                    st.caption("※開催中イベントのため、最新順位をAPIから取得しています。")
+                                    api_url_base = "https://www.showroom-live.com/api/event/room_list"
+                                    all_rooms = []
+                                    # 🔁 ページを全取得（最大50ページ程度まで安全上限）
+                                    for page in range(1, 60):
+                                        api_url = f"{api_url_base}?event_id={event_details_to_link.iloc[0]['イベントID']}&p={page}"
+                                        resp = requests.get(api_url, timeout=5)
+                                        if resp.status_code != 200:
+                                            break
+                                        data = resp.json()
+                                        rooms = data.get("list") or data.get("room_list") or []
+                                        if not rooms:
+                                            break
+                                        all_rooms.extend(rooms)
+                                        if len(rooms) < 30:
+                                            break
+
+                                    # 🎯 該当room_idを抽出（アカウントID一致からCSVでroom_idを取得）
+                                    target_room_id = str(event_details_to_link.iloc[0]["ルームID"]) if "ルームID" in event_details_to_link.columns else None
+                                    matched = next((r for r in all_rooms if str(r.get("room_id")) == str(target_room_id)), None)
+
+                                    if matched:
+                                        event_rank = matched.get("rank", "-")
+                                        event_point = matched.get("point", 0)
+                                        # event_entry内のquest_levelを安全に取得
+                                        ev = matched.get("event_entry") or {}
+                                        event_level = ev.get("quest_level", "")
+                                    else:
+                                        st.warning("⚠️ 対象ルームがAPI結果に見つかりません。CSVデータを使用します。")
+                                        use_api = False
+
+                                except Exception as e:
+                                    st.warning(f"⚠️ API取得失敗のため、CSVデータを使用します。詳細: {e}")
+                                    use_api = False
+
+                            # 🟡 API未使用または失敗時はCSVの値を利用
+                            if not use_api:
+                                event_rank = event_details_to_link.iloc[0].get("順位", "N/A")
+                                event_point = event_details_to_link.iloc[0].get("ポイント", "N/A")
+                                event_level = event_details_to_link.iloc[0].get("レベル", "N/A")
+
+                            # ✅ ポイントのカンマ区切り処理
                             try:
                                 event_point_display = f"{int(event_point):,}"
-                            except:
+                            except Exception:
                                 event_point_display = str(event_point)
 
-                            # 結果を太字で表示
+                            # ✅ 表示部分（既存デザイン踏襲）
                             st.markdown(f"**順位：{event_rank} / ポイント：{event_point_display} / レベル：{event_level}**", unsafe_allow_html=True)
+                            # ==============================================
+
 
                             # 以前の修正: イベントURLへのリンクを追加
                             if 'URL' in event_details_to_link.columns:
