@@ -193,7 +193,7 @@ else:  # 'イベントで指定'
                                     all_rooms = []
                                     # 🔁 ページを全取得（最大50ページ程度まで安全上限）
                                     for page in range(1, 60):
-                                        api_url = f"{api_url_base}?event_id={event_details_to_link.iloc[0]['イベントID']}&p={page}"
+                                        api_url = f"{api_url_base}?event_id={event_details_to_link.iloc[0]['event_id']}&p={page}"
                                         resp = requests.get(api_url, timeout=5)
                                         if resp.status_code != 200:
                                             break
