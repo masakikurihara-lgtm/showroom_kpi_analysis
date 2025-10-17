@@ -188,7 +188,7 @@ else:  # 'イベントで指定'
 
                             if use_api:
                                 try:
-                                    st.caption("※開催中イベントのため、最新順位をAPIから取得しています。")
+                                    #st.caption("※開催中イベントのため、最新順位をAPIから取得しています。")
                                     api_url_base = "https://www.showroom-live.com/api/event/room_list"
                                     all_rooms = []
                                     # 🔁 ページを全取得（最大50ページ程度まで安全上限）
